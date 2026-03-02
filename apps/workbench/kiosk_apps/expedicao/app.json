@@ -1,0 +1,29 @@
+{
+    "name": "Expedição v4",
+    "description": "RFID Invetory Validation for Shipping",
+    "page": "expedicao",
+    "order": {
+        "id": "ORD-2025-0001",
+        "description": "Sample RFID Inventory Validation Order",
+        "dock_number": "01",
+        "created_at": "2025-02-17T10:00:00Z",
+        "status": "validating",
+        "inventory_check": {
+            "mode": "rfid_scan",
+            "items": [
+                {
+                    "epc": "00000001FFFF000000008100",
+                    "name": "Motor Controller Unit A1"
+                },
+                {
+                    "epc": "563330000000000000008100",
+                    "name": "Temperature Sensor Module V3"
+                },
+                {
+                    "epc": "0000000003FF000000008100",
+                    "name": "I/O Expansion Shield FF"
+                }
+            ]
+        }
+    }
+}

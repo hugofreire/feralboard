@@ -1,0 +1,30 @@
+site_name: FeralBoard Workbench
+site_description: Consolidated development environment for FeralBoard — firmware, serial library, E2E tests, and GTK3 GUI.
+
+theme:
+  name: shadcn
+  show_title: true
+  show_datetime: false
+  pygments_style:
+    light: shadcn-light
+    dark: github-dark
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Firmware:
+    - Hardware Spec: firmware/hardware-spec.md
+    - Pin Map: firmware/pin-map.md
+    - I/O Naming: firmware/io-naming.md
+  - Protocol:
+    - Serial Protocol: api/serial-protocol.md
+    - raspi-gpio API: api/raspi-gpio.md
+  - Project Plan: project-plan.md
+
+markdown_extensions:
+  - admonition
+  - tables
+  - fenced_code
+  - codehilite
+  - toc:
+      permalink: true

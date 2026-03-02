@@ -1,0 +1,11 @@
+site/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.*
+*.log
+.default_app
+screen.png
+cli-build/
+*.hex

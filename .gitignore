@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+.turbo/
+.pnpm-store/
+.DS_Store
+*.log
+.env
+.env.*
+__pycache__/
+*.pyc
+*.pyo
+site/
+screen.png

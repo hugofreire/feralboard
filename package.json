@@ -1,0 +1,13 @@
+{
+  "name": "feralboard",
+  "private": true,
+  "packageManager": "pnpm@10",
+  "scripts": {
+    "dev:pi-web": "pnpm --dir apps/pi-web dev",
+    "dev:website": "pnpm --dir apps/website dev",
+    "build:pi-web": "pnpm --dir apps/pi-web build",
+    "build:website": "pnpm --dir apps/website build",
+    "lint:website": "pnpm --dir apps/website lint",
+    "test:website": "pnpm --dir apps/website test"
+  }
+}

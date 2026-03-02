@@ -1,0 +1,332 @@
+/* FeralBoard Workbench dark theme */
+
+window {
+    background-color: #1a1a2e;
+    color: #e0e0e0;
+}
+
+headerbar {
+    background-color: #16213e;
+    border-bottom: 1px solid #0f3460;
+    min-height: 48px;
+}
+
+headerbar button {
+    background-color: transparent;
+    border: 1px solid #0f3460;
+    border-radius: 6px;
+    color: #e0e0e0;
+    padding: 4px 12px;
+    min-height: 32px;
+}
+
+headerbar button:checked,
+headerbar button.active {
+    background-color: #0f3460;
+    color: #e94560;
+    border-color: #e94560;
+}
+
+headerbar button:hover {
+    background-color: #0f3460;
+}
+
+/* Card styling */
+.card {
+    background-color: #16213e;
+    border: 1px solid #0f3460;
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.card-label {
+    color: #a0a0a0;
+    font-size: 11px;
+}
+
+.card-value {
+    color: #e0e0e0;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* Toggle card */
+.toggle-card {
+    background-color: #16213e;
+    border: 1px solid #0f3460;
+    border-radius: 10px;
+    padding: 8px;
+    min-width: 130px;
+    min-height: 80px;
+}
+
+.toggle-card-on {
+    border-color: #e94560;
+}
+
+/* Input card */
+.input-card {
+    background-color: #16213e;
+    border: 1px solid #0f3460;
+    border-radius: 10px;
+    padding: 8px;
+    min-width: 160px;
+    min-height: 50px;
+}
+
+/* Status indicators */
+.led-on {
+    color: #2ecc71;
+}
+
+.led-off {
+    color: #555555;
+}
+
+.led-mismatch {
+    color: #e74c3c;
+}
+
+/* Status dot */
+.status-dot-on {
+    color: #2ecc71;
+    font-size: 24px;
+}
+
+.status-dot-off {
+    color: #555555;
+    font-size: 24px;
+}
+
+/* Connection status */
+.connected {
+    color: #2ecc71;
+}
+
+.disconnected {
+    color: #e74c3c;
+}
+
+/* Combo box */
+comboboxtext {
+    background-color: #16213e;
+    color: #e0e0e0;
+    border: 1px solid #0f3460;
+    border-radius: 4px;
+}
+
+/* Switch */
+switch {
+    min-width: 48px;
+    min-height: 24px;
+}
+
+switch:checked {
+    background-color: #e94560;
+}
+
+/* Buttons */
+button {
+    background-color: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #0f3460;
+    border-radius: 6px;
+    padding: 8px 16px;
+}
+
+button:hover {
+    background-color: #1a4080;
+}
+
+button.suggested-action {
+    background-color: #e94560;
+    border-color: #e94560;
+}
+
+button.suggested-action:hover {
+    background-color: #ff6b81;
+}
+
+button.destructive-action {
+    background-color: #c0392b;
+    border-color: #c0392b;
+}
+
+/* Scrolled window */
+scrolledwindow {
+    background-color: transparent;
+}
+
+/* Separator */
+separator {
+    background-color: #0f3460;
+    min-height: 1px;
+}
+
+/* Text view (test output) */
+textview {
+    background-color: #0d1117;
+    color: #c9d1d9;
+    font-family: monospace;
+    font-size: 11px;
+}
+
+textview text {
+    background-color: #0d1117;
+    color: #c9d1d9;
+}
+
+/* Page title */
+.page-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #e0e0e0;
+}
+
+/* Section title */
+.section-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #a0a0a0;
+}
+
+/* Navigation cards on home page */
+.nav-card {
+    background-color: #16213e;
+    border: 1px solid #0f3460;
+    border-radius: 10px;
+    padding: 4px;
+    min-height: 80px;
+}
+
+.nav-card:hover {
+    background-color: #1a2a4e;
+    border-color: #e94560;
+}
+
+/* WiFi page */
+.wifi-row {
+    background-color: #16213e;
+    border-bottom: 1px solid #0f3460;
+}
+
+/* Level bars */
+levelbar trough {
+    background-color: #0f3460;
+    min-height: 24px;
+    border-radius: 4px;
+}
+
+levelbar block.filled {
+    background-color: #e94560;
+    border-radius: 4px;
+}
+
+/* List box rows */
+list row {
+    background-color: transparent;
+}
+
+list row:hover {
+    background-color: #1a2a4e;
+}
+
+/* Entry fields */
+entry {
+    background-color: #16213e;
+    color: #e0e0e0;
+    border: 1px solid #0f3460;
+    border-radius: 6px;
+    padding: 8px;
+    min-height: 36px;
+}
+
+entry:focus {
+    border-color: #e94560;
+}
+
+/* Radio buttons */
+radiobutton {
+    color: #e0e0e0;
+}
+
+radiobutton radio {
+    background-color: #16213e;
+    border: 2px solid #0f3460;
+    min-width: 20px;
+    min-height: 20px;
+}
+
+radiobutton radio:checked {
+    background-color: #e94560;
+    border-color: #e94560;
+}
+
+/* Kiosk page */
+.kiosk-page, .kiosk-page * {
+    background-color: #000000;
+}
+
+/* PIN page */
+.pin-page {
+    background-color: #0a0a0a;
+}
+
+/* PIN keypad buttons */
+.pin-key {
+    background-color: #1a1a2e;
+    border: 2px solid #0f3460;
+    border-radius: 12px;
+    font-size: 22px;
+    font-weight: bold;
+    color: white;
+    min-width: 80px;
+    min-height: 60px;
+}
+.pin-key:hover { background-color: #0f3460; }
+.pin-key-ok { background-color: #2ecc71; border-color: #2ecc71; }
+.pin-key-ok:hover { background-color: #27ae60; }
+.pin-key-back { background-color: #e74c3c; border-color: #e74c3c; }
+.pin-key-back:hover { background-color: #c0392b; }
+
+/* ── Expedição app ── */
+.expedicao-light {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    font-size: 40px;
+    min-width: 64px;
+    min-height: 64px;
+    padding: 4px;
+}
+.expedicao-light:hover {
+    background-color: #16213e;
+    border-radius: 32px;
+}
+
+.expedicao-clear-btn {
+    font-size: 10px;
+    min-height: 28px;
+    min-width: 48px;
+    padding: 2px 8px;
+    background-color: #16213e;
+    border: 1px solid #0f3460;
+    border-radius: 6px;
+    color: #888888;
+}
+.expedicao-clear-btn:hover { background-color: #1a2a4e; }
+
+.expedicao-item-row {
+    background-color: #16213e;
+    border: 1px solid #0f3460;
+    border-radius: 8px;
+    padding: 8px;
+}
+.expedicao-item-matched {
+    background-color: #0a2e1a;
+    border-color: #2ecc71;
+}
+.expedicao-item-unknown {
+    background-color: #2e0a0a;
+    border-color: #e74c3c;
+}
