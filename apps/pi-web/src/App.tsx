@@ -214,8 +214,10 @@ function Dashboard({
   return (
     <>
       {/* Header */}
-      <header className="flex items-center gap-3 px-4 py-3 border-b border-sidebar-border shrink-0">
-        <span className="text-base font-semibold">FeralBoard Portal</span>
+      <header className="flex items-center gap-3 px-4 py-3 border-b border-sidebar-border shrink-0 bg-background/90 backdrop-blur-sm">
+        <span className="text-base font-semibold font-[var(--font-display)]">
+          <span className="text-primary-light">Feral</span>Board Portal
+        </span>
         <div className="flex-1" />
         <Button variant="ghost" size="sm" onClick={onOpenVnc} title="Live device screen (VNC)">
           <Monitor className="size-3.5" />
@@ -238,8 +240,9 @@ function Dashboard({
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 py-6 max-md:px-3">
           {/* App grid */}
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-medium text-muted-foreground">Kiosk Apps</h2>
+          <div className="flex items-center gap-4 mb-4">
+            <h2 className="font-mono text-[10px] uppercase tracking-[3px] text-primary shrink-0">Kiosk Apps</h2>
+            <div className="flex-1 h-px bg-rule" />
             <Button size="sm" onClick={onCreate}>
               <Plus className="size-3.5" /> New App
             </Button>
@@ -249,11 +252,14 @@ function Dashboard({
             {apps.map((app) => (
               <div
                 key={app.slug}
-                className="border border-border rounded-lg bg-card p-4 flex flex-col gap-3"
+                className={cn(
+                  "border border-border rounded-lg bg-card p-4 flex flex-col gap-3 border-l-[3px]",
+                  app.type === "custom" ? "border-l-primary" : "border-l-muted-foreground/30"
+                )}
               >
                 <div className="flex items-start justify-between">
                   <div className="min-w-0">
-                    <div className="font-medium text-sm truncate">{app.name}</div>
+                    <div className="font-mono text-[11px] uppercase tracking-wider font-semibold truncate">{app.name}</div>
                     <div className="text-xs text-muted-foreground mt-0.5 truncate">{app.description}</div>
                   </div>
                   <Badge variant={app.type === "custom" ? "primary" : "default"} className="shrink-0 ml-2">
@@ -298,7 +304,10 @@ function Dashboard({
           {/* Screenshot preview */}
           {screenshotUrl && (
             <div className="mb-6">
-              <h2 className="text-sm font-medium text-muted-foreground mb-3">Device Screen</h2>
+              <div className="flex items-center gap-4 mb-3">
+                <h2 className="font-mono text-[10px] uppercase tracking-[3px] text-primary shrink-0">Device Screen</h2>
+                <div className="flex-1 h-px bg-rule" />
+              </div>
               <div className="border border-border rounded-lg overflow-hidden bg-black inline-block">
                 <img
                   key={screenshotKey}
@@ -525,7 +534,7 @@ function AgentView({
         {/* File explorer (top) */}
         <div className="border-b border-sidebar-border">
           <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-xs font-medium text-muted-foreground">Files</span>
+            <span className="font-mono text-[10px] uppercase tracking-[3px] text-primary">Files</span>
           </div>
           <div className="overflow-y-auto max-h-[40vh] px-1 pb-2">
             {[...dirs.entries()].map(([dir, dirFiles]) => (
@@ -563,7 +572,7 @@ function AgentView({
 
         {/* Sessions (bottom) */}
         <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-xs font-medium text-muted-foreground">Sessions</span>
+          <span className="font-mono text-[10px] uppercase tracking-[3px] text-primary">Sessions</span>
           <Button variant="ghost" size="icon" className="size-6" onClick={newSession} title="New session">
             <Plus className="size-3" />
           </Button>
@@ -591,12 +600,12 @@ function AgentView({
       {/* ── Main area ── */}
       <div className="flex flex-col flex-1 min-w-0">
         {/* Header */}
-        <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0">
+        <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0 bg-background/90 backdrop-blur-sm">
           <Button variant="ghost" size="icon" className="size-8" onClick={onBack}>
             <ArrowLeft className="size-4" />
           </Button>
           <Code className="size-4 text-primary" />
-          <span className="text-sm font-semibold truncate">{appName}</span>
+          <span className="text-sm font-semibold font-[var(--font-display)] truncate">{appName}</span>
           <span className="text-xs font-mono text-muted-foreground/60 truncate max-md:hidden">kiosk_apps/{slug}/</span>
           <div className="flex-1" />
           <Button variant="ghost" size="sm" onClick={onScreenshot} title="Screenshot">
@@ -691,7 +700,7 @@ function AgentView({
                     {activeTools.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mb-1.5">
                         {activeTools.map((t, j) => (
-                          <span key={j} className="inline-flex items-center gap-1 text-[0.65rem] text-warning/80 font-mono">
+                          <span key={j} className="inline-flex items-center gap-1 text-[0.65rem] text-primary-light/80 font-mono">
                             <Loader2 className="size-2.5 animate-spin" />{t}
                           </span>
                         ))}
@@ -777,9 +786,9 @@ function AgentView({
 
               {/* VNC panel */}
               <div className="shrink-0 flex flex-col border-l border-sidebar-border" style={{ width: vnc.width }}>
-                <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-sidebar-border bg-sidebar-background shrink-0">
+                <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-sidebar-border bg-sidebar-background/90 backdrop-blur-sm shrink-0">
                   <Monitor className="size-3 text-primary" />
-                  <span className="text-xs font-medium text-muted-foreground">Device Screen</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[3px] text-primary">Device Screen</span>
                   <div className="flex-1" />
                   <Button variant="ghost" size="icon" className="size-5" onClick={() => vnc.setIsOpen(false)} title="Close">
                     <X className="size-3" />
@@ -833,12 +842,12 @@ function ConfigEditor({ slug, onBack }: { slug: string; onBack: () => void }) {
 
   return (
     <>
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0">
+      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0 bg-background/90 backdrop-blur-sm">
         <Button variant="ghost" size="icon" className="size-8" onClick={onBack}>
           <ArrowLeft className="size-4" />
         </Button>
         <FileText className="size-4 text-muted-foreground" />
-        <span className="text-sm font-semibold">app.json</span>
+        <span className="text-sm font-semibold font-[var(--font-display)]">app.json</span>
         <span className="text-xs font-mono text-muted-foreground/60">kiosk_apps/{slug}/</span>
         <div className="flex-1" />
         <Button size="sm" onClick={save} disabled={saving}>
@@ -850,7 +859,7 @@ function ConfigEditor({ slug, onBack }: { slug: string; onBack: () => void }) {
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-2xl mx-auto">
           {error && (
-            <div className="text-sm text-destructive mb-3 p-2 rounded bg-destructive/10 border border-destructive/20">
+            <div className="text-sm text-destructive mb-3 p-3 rounded bg-tint-accent border-l-[3px] border-destructive">
               {error}
             </div>
           )}
@@ -909,12 +918,12 @@ function EnvEditor({ slug, onBack }: { slug: string; onBack: () => void }) {
 
   return (
     <>
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0">
+      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0 bg-background/90 backdrop-blur-sm">
         <Button variant="ghost" size="icon" className="size-8" onClick={onBack}>
           <ArrowLeft className="size-4" />
         </Button>
         <Settings className="size-4 text-muted-foreground" />
-        <span className="text-sm font-semibold">.env</span>
+        <span className="text-sm font-semibold font-[var(--font-display)]">.env</span>
         <span className="text-xs font-mono text-muted-foreground/60">kiosk_apps/{slug}/</span>
         <div className="flex-1" />
         <Button size="sm" onClick={save} disabled={saving}>
@@ -993,24 +1002,24 @@ function CreateApp({ onBack, onCreated }: { onBack: () => void; onCreated: (slug
 
   return (
     <>
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0">
+      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0 bg-background/90 backdrop-blur-sm">
         <Button variant="ghost" size="icon" className="size-8" onClick={onBack}>
           <ArrowLeft className="size-4" />
         </Button>
         <Plus className="size-4 text-muted-foreground" />
-        <span className="text-sm font-semibold">New App</span>
+        <span className="text-sm font-semibold font-[var(--font-display)]">New App</span>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-md mx-auto flex flex-col gap-4">
           {error && (
-            <div className="text-sm text-destructive p-2 rounded bg-destructive/10 border border-destructive/20">
+            <div className="text-sm text-destructive p-3 rounded bg-tint-accent border-l-[3px] border-destructive">
               {error}
             </div>
           )}
 
           <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Name</label>
+            <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">Name</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -1025,7 +1034,7 @@ function CreateApp({ onBack, onCreated }: { onBack: () => void; onCreated: (slug
           </div>
 
           <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Description</label>
+            <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">Description</label>
             <Input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -1034,14 +1043,14 @@ function CreateApp({ onBack, onCreated }: { onBack: () => void; onCreated: (slug
           </div>
 
           <div>
-            <label className="text-xs text-muted-foreground mb-2 block">Type</label>
+            <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-2 block">Type</label>
             <div className="flex gap-2">
               <button
                 className={cn(
-                  "flex-1 p-3 rounded-lg border text-left transition-colors cursor-pointer",
+                  "flex-1 p-3 rounded-lg border text-left transition-colors cursor-pointer border-l-[3px]",
                   type === "custom"
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-card hover:bg-accent"
+                    ? "border-l-primary border-primary/40 bg-primary/10"
+                    : "border-l-transparent border-border bg-card hover:bg-accent"
                 )}
                 onClick={() => setType("custom")}
               >
@@ -1054,10 +1063,10 @@ function CreateApp({ onBack, onCreated }: { onBack: () => void; onCreated: (slug
               </button>
               <button
                 className={cn(
-                  "flex-1 p-3 rounded-lg border text-left transition-colors cursor-pointer",
+                  "flex-1 p-3 rounded-lg border text-left transition-colors cursor-pointer border-l-[3px]",
                   type === "greeting"
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-card hover:bg-accent"
+                    ? "border-l-primary border-primary/40 bg-primary/10"
+                    : "border-l-transparent border-border bg-card hover:bg-accent"
                 )}
                 onClick={() => setType("greeting")}
               >
@@ -1073,7 +1082,7 @@ function CreateApp({ onBack, onCreated }: { onBack: () => void; onCreated: (slug
 
           {type === "greeting" && (
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Greeting Text</label>
+              <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">Greeting Text</label>
               <Input
                 value={greeting}
                 onChange={(e) => setGreeting(e.target.value)}
@@ -1083,7 +1092,7 @@ function CreateApp({ onBack, onCreated }: { onBack: () => void; onCreated: (slug
           )}
 
           {type === "custom" && slug && (
-            <div className="text-xs text-muted-foreground/60 p-3 rounded bg-surface border border-border font-mono">
+            <div className="text-xs text-muted-foreground/60 p-3 rounded bg-tint-accent border-l-[3px] border-primary/40 font-mono">
               <div>Will create:</div>
               <div className="mt-1">kiosk_apps/{slug}/app.json</div>
               <div>kiosk_apps/{slug}/.env</div>

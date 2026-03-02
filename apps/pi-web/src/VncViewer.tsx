@@ -74,12 +74,12 @@ export function VncPanel({ className }: { className?: string }) {
 export default function VncViewer({ onBack }: { onBack: () => void }) {
   return (
     <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0">
+      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0 bg-background/90 backdrop-blur-sm">
         <Button variant="ghost" size="icon" className="size-8" onClick={onBack}>
           <ArrowLeft className="size-4" />
         </Button>
         <Monitor className="size-4 text-primary" />
-        <span className="text-sm font-semibold">Device Screen</span>
+        <span className="text-sm font-semibold font-[var(--font-display)]">Device Screen</span>
         <span className="text-xs font-mono text-muted-foreground/60">VNC</span>
       </header>
       <VncPanel className="flex-1" />

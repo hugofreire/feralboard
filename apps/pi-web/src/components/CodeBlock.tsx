@@ -67,7 +67,8 @@ export function CodeBlock({
                       className="select-none text-right pr-4 shrink-0"
                       style={{
                         width: `${String(tokens.length).length * 0.7 + 1}em`,
-                        color: "rgba(139,148,158,0.35)",
+                        color: "var(--color-muted-foreground)",
+                        opacity: 0.35,
                       }}
                     >
                       {i + 1}
