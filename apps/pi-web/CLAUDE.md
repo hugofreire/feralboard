@@ -26,6 +26,15 @@ FeralBoard Developer Portal — a web-based tool for managing kiosk apps on the 
 - `PI_PROVIDER` — LLM provider (default: `openai`)
 - `PI_MODEL` — model ID (default: `o3-mini`)
 
+## Dependency Patch
+
+- `@mariozechner/pi-ai` is patched with `patch-package` in `patches/@mariozechner+pi-ai+0.53.0.patch`.
+- The patch changes the OpenAI Responses provider from `store: false` to `store: true`.
+- Reason: `pi-web` resumes/switches local SDK sessions, and OpenAI Responses item IDs break on resumed turns when responses were created with `store: false`.
+- Symptom if this patch is missing: `404 Item with id 'rs_...' not found. Items are not persisted when store is set to false.`
+- `apps/pi-web/package.json` includes `"postinstall": "patch-package"`, so a normal `npm install` in `apps/pi-web` should reapply it automatically.
+- If the dependency version changes, regenerate the patch instead of editing `node_modules` manually.
+
 ## Development
 
 ```bash
@@ -40,3 +49,4 @@ npm run dev:client   # vite only
 - The agent CWD defaults to `FERALBOARD_PATH`, not `process.cwd()`.
 - Custom page apps generate both `kiosk_apps/<slug>/app.json` AND `gui/pages/<slug>.py`.
 - Deleting a custom app also removes its page file from `gui/pages/`.
+- Vite 7 requires Node `20.19+` or `22.12+`. On this repo we used a local Node `20.19.0` runtime under `/home/pi/.local/node-v20.19.0-package/node_modules/.bin/node` for builds/dev on this Pi.

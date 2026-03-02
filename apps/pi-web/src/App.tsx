@@ -8,14 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CodeBlock, MarkdownCode } from "@/components/CodeBlock";
 import VncViewer, { VncPanel } from "./VncViewer";
+import { getPreferredLanguage, LANGUAGE_STORAGE_KEY, translate, type Language } from "./i18n";
 import {
   ArrowUp, ArrowLeft, Check, X, Plus, Square, Loader2, Wrench,
   Monitor, RefreshCw, Camera, Trash2, Settings, Code, MessageSquare,
   FileText, Zap, ChevronRight, FolderOpen, File, ChevronDown,
-  PanelRightOpen, PanelRightClose, GripVertical,
+  PanelRightOpen, PanelRightClose, GripVertical, Moon, Sun, Languages,
 } from "lucide-react";
 
 const mdComponents = { code: MarkdownCode };
+const THEME_STORAGE_KEY = "feralboard-theme";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -106,16 +108,85 @@ function useRouter() {
   return { route, navigate };
 }
 
+type Theme = "light" | "dark";
+
+function getPreferredTheme(): Theme {
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === "light" || stored === "dark") return stored;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyTheme(theme: Theme) {
+  document.documentElement.classList.toggle("dark", theme === "dark");
+  document.documentElement.style.colorScheme = theme;
+}
+
+function ThemeToggleButton({
+  theme,
+  onToggle,
+  t,
+}: {
+  theme: Theme;
+  onToggle: () => void;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={onToggle}
+      title={theme === "dark" ? t("switchToLight") : t("switchToDark")}
+      className="border border-border/70 bg-card/70 backdrop-blur-sm"
+    >
+      {theme === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+      <span className="ml-1 max-md:hidden">{theme === "dark" ? t("light") : t("dark")}</span>
+    </Button>
+  );
+}
+
+function LanguageToggleButton({
+  language,
+  onToggle,
+  t,
+}: {
+  language: Language;
+  onToggle: () => void;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={onToggle}
+      title={t("language")}
+      className="border border-border/70 bg-card/70 backdrop-blur-sm"
+    >
+      <Languages className="size-3.5" />
+      <span className="ml-1 font-mono text-[11px]">{language.toUpperCase()}</span>
+    </Button>
+  );
+}
+
 // ── App ─────────────────────────────────────────────────────────
 
 export default function App() {
   const { route, navigate } = useRouter();
+  const [theme, setTheme] = useState<Theme>(() => getPreferredTheme());
+  const [language, setLanguage] = useState<Language>(() => getPreferredLanguage());
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   const [screenshotKey, setScreenshotKey] = useState(0);
 
   useEffect(() => { fetchApps(); }, []);
+  useEffect(() => {
+    applyTheme(theme);
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+  useEffect(() => {
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    document.documentElement.lang = language;
+  }, [language]);
 
   const fetchApps = async () => {
     try { setApps(await (await fetch("/api/apps")).json()); } catch {}
@@ -144,11 +215,19 @@ export default function App() {
 
   // Resolve app name for agent view (need it from the apps list)
   const getAppName = (slug: string) => apps.find((a) => a.slug === slug)?.name || slug;
+  const toggleTheme = () => setTheme((current) => current === "dark" ? "light" : "dark");
+  const toggleLanguage = () => setLanguage((current) => current === "en" ? "pt" : "en");
+  const t = (key: string, vars?: Record<string, string | number>) => translate(language, key, vars);
 
   return (
     <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
       {route.page === "dashboard" && (
         <Dashboard
+          language={language}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onToggleLanguage={toggleLanguage}
+          t={t}
           apps={apps} loading={loading}
           screenshotUrl={screenshotUrl} screenshotKey={screenshotKey}
           onRefresh={fetchApps} onRestartGui={restartGui} onScreenshot={takeScreenshot}
@@ -162,6 +241,11 @@ export default function App() {
       )}
       {route.page === "agent" && (
         <AgentView
+          language={language}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onToggleLanguage={toggleLanguage}
+          t={t}
           slug={route.slug}
           appName={getAppName(route.slug)}
           onBack={() => { navigate({ page: "dashboard" }); fetchApps(); }}
@@ -172,19 +256,24 @@ export default function App() {
         />
       )}
       {route.page === "config" && (
-        <ConfigEditor slug={route.slug} onBack={() => { navigate({ page: "dashboard" }); fetchApps(); }} />
+        <ConfigEditor language={language} theme={theme} onToggleTheme={toggleTheme} onToggleLanguage={toggleLanguage} t={t} slug={route.slug} onBack={() => { navigate({ page: "dashboard" }); fetchApps(); }} />
       )}
       {route.page === "env" && (
-        <EnvEditor slug={route.slug} onBack={() => { navigate({ page: "dashboard" }); fetchApps(); }} />
+        <EnvEditor language={language} theme={theme} onToggleTheme={toggleTheme} onToggleLanguage={toggleLanguage} t={t} slug={route.slug} onBack={() => { navigate({ page: "dashboard" }); fetchApps(); }} />
       )}
       {route.page === "create" && (
         <CreateApp
+          language={language}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onToggleLanguage={toggleLanguage}
+          t={t}
           onBack={() => navigate({ page: "dashboard" })}
           onCreated={() => { fetchApps(); navigate({ page: "dashboard" }); }}
         />
       )}
       {route.page === "vnc" && (
-        <VncViewer onBack={() => navigate({ page: "dashboard" })} />
+        <VncViewer language={language} onBack={() => navigate({ page: "dashboard" })} />
       )}
     </div>
   );
@@ -193,10 +282,20 @@ export default function App() {
 // ── Dashboard ───────────────────────────────────────────────────
 
 function Dashboard({
+  language,
+  theme,
+  onToggleTheme,
+  onToggleLanguage,
+  t,
   apps, loading, screenshotUrl, screenshotKey,
   onRefresh, onRestartGui, onScreenshot,
   onOpenAgent, onOpenConfig, onOpenEnv, onCreate, onDelete, onOpenVnc,
 }: {
+  language: Language;
+  theme: Theme;
+  onToggleTheme: () => void;
+  onToggleLanguage: () => void;
+  t: (key: string, vars?: Record<string, string | number>) => string;
   apps: AppInfo[];
   loading: boolean;
   screenshotUrl: string | null;
@@ -214,14 +313,18 @@ function Dashboard({
   return (
     <>
       {/* Header */}
-      <header className="flex items-center gap-3 px-4 py-3 border-b border-sidebar-border shrink-0">
-        <span className="text-base font-semibold">FeralBoard Portal</span>
+      <header className="flex items-center gap-3 px-4 py-3 border-b border-sidebar-border shrink-0 bg-background/90 backdrop-blur-sm">
+        <span className="text-base font-semibold font-[var(--font-display)]">
+          <span className="text-primary-light">Feral</span>{t("portalTitle").replace("Feral", "")}
+        </span>
         <div className="flex-1" />
-        <Button variant="ghost" size="sm" onClick={onOpenVnc} title="Live device screen (VNC)">
+        <Button variant="ghost" size="sm" onClick={onOpenVnc} title={t("deviceScreen")}>
           <Monitor className="size-3.5" />
-          <span className="ml-1">Screen</span>
+          <span className="ml-1">{t("screen")}</span>
         </Button>
-        <Button variant="ghost" size="sm" onClick={onScreenshot} title="Take screenshot">
+        <LanguageToggleButton language={language} onToggle={onToggleLanguage} t={t} />
+        <ThemeToggleButton theme={theme} onToggle={onToggleTheme} t={t} />
+        <Button variant="ghost" size="sm" onClick={onScreenshot} title={t("screenshot")}>
           <Camera className="size-3.5" />
         </Button>
         <Button
@@ -231,17 +334,18 @@ function Dashboard({
           title="Restart GUI + Screenshot"
         >
           {loading ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-          <span className="ml-1">Restart GUI</span>
+          <span className="ml-1">{t("restartGui")}</span>
         </Button>
       </header>
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 py-6 max-md:px-3">
           {/* App grid */}
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-medium text-muted-foreground">Kiosk Apps</h2>
+          <div className="flex items-center gap-4 mb-4">
+            <h2 className="font-mono text-[10px] uppercase tracking-[3px] text-primary shrink-0">{t("kioskApps")}</h2>
+            <div className="flex-1 h-px bg-rule" />
             <Button size="sm" onClick={onCreate}>
-              <Plus className="size-3.5" /> New App
+              <Plus className="size-3.5" /> {t("newApp")}
             </Button>
           </div>
 
@@ -249,11 +353,14 @@ function Dashboard({
             {apps.map((app) => (
               <div
                 key={app.slug}
-                className="border border-border rounded-lg bg-card p-4 flex flex-col gap-3"
+                className={cn(
+                  "border border-border rounded-lg bg-card p-4 flex flex-col gap-3 border-l-[3px]",
+                  app.type === "custom" ? "border-l-primary" : "border-l-muted-foreground/30"
+                )}
               >
                 <div className="flex items-start justify-between">
                   <div className="min-w-0">
-                    <div className="font-medium text-sm truncate">{app.name}</div>
+                    <div className="font-mono text-[11px] uppercase tracking-wider font-semibold truncate">{app.name}</div>
                     <div className="text-xs text-muted-foreground mt-0.5 truncate">{app.description}</div>
                   </div>
                   <Badge variant={app.type === "custom" ? "primary" : "default"} className="shrink-0 ml-2">
@@ -269,15 +376,15 @@ function Dashboard({
                 </div>
 
                 <div className="flex gap-2 mt-auto">
-                  <Button variant="ghost" size="sm" onClick={() => onOpenConfig(app.slug)} title="Edit app.json">
-                    <FileText className="size-3.5" /> Config
+                  <Button variant="ghost" size="sm" onClick={() => onOpenConfig(app.slug)} title={t("config")}>
+                    <FileText className="size-3.5" /> {t("config")}
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => onOpenEnv(app.slug)} title="Edit .env">
-                    <Settings className="size-3.5" /> Env
+                  <Button variant="ghost" size="sm" onClick={() => onOpenEnv(app.slug)} title={t("env")}>
+                    <Settings className="size-3.5" /> {t("env")}
                   </Button>
                   {app.type === "custom" && (
-                    <Button size="sm" onClick={() => onOpenAgent(app.slug)} title="Open AI coding agent">
-                      <Code className="size-3.5" /> Agent
+                    <Button size="sm" onClick={() => onOpenAgent(app.slug)} title={t("agent")}>
+                      <Code className="size-3.5" /> {t("agent")}
                     </Button>
                   )}
                   <div className="flex-1" />
@@ -290,7 +397,7 @@ function Dashboard({
 
             {apps.length === 0 && (
               <div className="col-span-2 text-center text-muted-foreground/40 py-12 text-sm">
-                No kiosk apps found. Create your first one!
+                {t("noApps")}
               </div>
             )}
           </div>
@@ -298,7 +405,10 @@ function Dashboard({
           {/* Screenshot preview */}
           {screenshotUrl && (
             <div className="mb-6">
-              <h2 className="text-sm font-medium text-muted-foreground mb-3">Device Screen</h2>
+              <div className="flex items-center gap-4 mb-3">
+                <h2 className="font-mono text-[10px] uppercase tracking-[3px] text-primary shrink-0">{t("deviceScreen")}</h2>
+                <div className="flex-1 h-px bg-rule" />
+              </div>
               <div className="border border-border rounded-lg overflow-hidden bg-black inline-block">
                 <img
                   key={screenshotKey}
@@ -352,8 +462,18 @@ function useResizablePanel(defaultWidth: number, minWidth: number, maxWidth: num
 // ── Agent Chat View ─────────────────────────────────────────────
 
 function AgentView({
+  language,
+  theme,
+  onToggleTheme,
+  onToggleLanguage,
+  t,
   slug, appName, onBack, onRestartGui, onScreenshot, screenshotUrl, screenshotKey,
 }: {
+  language: Language;
+  theme: Theme;
+  onToggleTheme: () => void;
+  onToggleLanguage: () => void;
+  t: (key: string, vars?: Record<string, string | number>) => string;
   slug: string;
   appName: string;
   onBack: () => void;
@@ -478,13 +598,13 @@ function AgentView({
               tools.push(label); setActiveTools([...tools]);
             }
             else if (event.type === "tool_end") setActiveTools([]);
-            else if (event.type === "error") { accumulated += `\n\n> Error: ${event.error}`; setStreamingText(accumulated); }
+            else if (event.type === "error") { accumulated += `\n\nError: ${event.error}`; setStreamingText(accumulated); }
           } catch {}
         }
       }
 
       setMessages((prev) => [...prev, {
-        role: "assistant", content: accumulated || "No response",
+        role: "assistant", content: accumulated || t("noResponse"),
         toolCalls: tools.length ? tools : undefined,
       }]);
       setStreamingText("");
@@ -525,7 +645,7 @@ function AgentView({
         {/* File explorer (top) */}
         <div className="border-b border-sidebar-border">
           <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-xs font-medium text-muted-foreground">Files</span>
+            <span className="font-mono text-[10px] uppercase tracking-[3px] text-primary">{t("files")}</span>
           </div>
           <div className="overflow-y-auto max-h-[40vh] px-1 pb-2">
             {[...dirs.entries()].map(([dir, dirFiles]) => (
@@ -556,19 +676,19 @@ function AgentView({
               </div>
             ))}
             {files.length === 0 && (
-              <div className="text-center text-muted-foreground/30 py-4 text-[0.65rem]">No files</div>
+              <div className="text-center text-muted-foreground/30 py-4 text-[0.65rem]">{t("noFiles")}</div>
             )}
           </div>
         </div>
 
         {/* Sessions (bottom) */}
         <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-xs font-medium text-muted-foreground">Sessions</span>
-          <Button variant="ghost" size="icon" className="size-6" onClick={newSession} title="New session">
+          <span className="font-mono text-[10px] uppercase tracking-[3px] text-primary">{t("sessions")}</span>
+          <Button variant="ghost" size="icon" className="size-6" onClick={newSession} title={t("sessions")}>
             <Plus className="size-3" />
           </Button>
         </div>
-        <div className="flex-1 overflow-y-auto px-1 pb-2">
+        <div className="purple-scrollbar flex-1 overflow-y-auto px-1 pb-2">
           {sessions.map((s) => (
             <button
               key={s.id}
@@ -583,7 +703,7 @@ function AgentView({
             </button>
           ))}
           {sessions.length === 0 && (
-            <div className="text-center text-muted-foreground/30 py-4 text-[0.65rem]">No sessions yet</div>
+            <div className="text-center text-muted-foreground/30 py-4 text-[0.65rem]">{t("noSessions")}</div>
           )}
         </div>
       </aside>
@@ -591,29 +711,31 @@ function AgentView({
       {/* ── Main area ── */}
       <div className="flex flex-col flex-1 min-w-0">
         {/* Header */}
-        <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0">
+        <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0 bg-background/90 backdrop-blur-sm">
           <Button variant="ghost" size="icon" className="size-8" onClick={onBack}>
             <ArrowLeft className="size-4" />
           </Button>
           <Code className="size-4 text-primary" />
-          <span className="text-sm font-semibold truncate">{appName}</span>
+          <span className="text-sm font-semibold font-[var(--font-display)] truncate">{appName}</span>
           <span className="text-xs font-mono text-muted-foreground/60 truncate max-md:hidden">kiosk_apps/{slug}/</span>
           <div className="flex-1" />
-          <Button variant="ghost" size="sm" onClick={onScreenshot} title="Screenshot">
+          <LanguageToggleButton language={language} onToggle={onToggleLanguage} t={t} />
+          <ThemeToggleButton theme={theme} onToggle={onToggleTheme} t={t} />
+          <Button variant="ghost" size="sm" onClick={onScreenshot} title={t("screenshot")}>
             <Camera className="size-3.5" />
           </Button>
-          <Button variant="secondary" size="sm" onClick={onRestartGui} title="Restart GUI">
-            <RefreshCw className="size-3.5" /> <span className="max-md:hidden">Restart</span>
+          <Button variant="secondary" size="sm" onClick={onRestartGui} title={t("restartGui")}>
+            <RefreshCw className="size-3.5" /> <span className="max-md:hidden">{t("restart")}</span>
           </Button>
           <Button
             variant={vnc.isOpen ? "default" : "ghost"}
             size="sm"
             onClick={() => vnc.setIsOpen(!vnc.isOpen)}
-            title={vnc.isOpen ? "Hide device screen" : "Show device screen"}
+            title={t("deviceScreen")}
             className="max-md:hidden"
           >
             {vnc.isOpen ? <PanelRightClose className="size-3.5" /> : <PanelRightOpen className="size-3.5" />}
-            <span className="ml-1">Screen</span>
+            <span className="ml-1">{t("screen")}</span>
           </Button>
         </header>
 
@@ -644,13 +766,13 @@ function AgentView({
           {/* ── Chat column ── */}
           <div className="flex flex-col flex-1 min-w-0">
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 max-md:px-3 flex flex-col gap-3">
+            <div className="hide-scrollbar flex-1 overflow-y-auto px-4 py-3 max-md:px-3 flex flex-col gap-3 bg-gradient-to-b from-transparent via-tint-accent/40 to-transparent">
               {messages.length === 0 && !streamingText && !sending && (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="text-center">
                     <Code className="size-8 text-muted-foreground/20 mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground/40 mb-1">Ready to code</p>
-                    <p className="text-xs text-muted-foreground/30">Describe what you want the agent to do with {appName}</p>
+                    <p className="text-sm text-muted-foreground/40 mb-1">{t("readyToCode")}</p>
+                    <p className="text-xs text-muted-foreground/30">{t("describeTask", { appName })}</p>
                   </div>
                 </div>
               )}
@@ -659,10 +781,10 @@ function AgentView({
                 <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
                   <div
                     className={cn(
-                      "max-w-[80%] max-md:max-w-[90%] text-sm leading-relaxed",
+                      "max-w-[78%] max-md:max-w-[92%] text-sm leading-relaxed",
                       msg.role === "user"
-                        ? "bg-primary/15 text-foreground px-3.5 py-2 rounded-2xl rounded-br-sm"
-                        : "px-1"
+                        ? "bg-primary/12 text-foreground px-3.5 py-2 rounded-2xl rounded-br-sm border border-primary/15 shadow-[0_8px_24px_rgba(124,58,237,0.08)]"
+                        : "px-3 py-2 rounded-2xl rounded-bl-sm bg-card/82 border border-border/70 shadow-[0_10px_28px_rgba(15,23,42,0.06)]"
                     )}
                   >
                     {msg.toolCalls && (
@@ -675,7 +797,7 @@ function AgentView({
                       </div>
                     )}
                     {msg.role === "assistant" ? (
-                      <div className="prose prose-sm prose-invert max-w-none">
+                      <div className="agent-markdown prose prose-sm max-w-none">
                         <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{msg.content}</ReactMarkdown>
                       </div>
                     ) : (
@@ -687,17 +809,17 @@ function AgentView({
 
               {streamingText && (
                 <div className="flex justify-start">
-                  <div className="max-w-[80%] max-md:max-w-[90%] text-sm leading-relaxed px-1">
+                  <div className="max-w-[78%] max-md:max-w-[92%] text-sm leading-relaxed px-3 py-2 rounded-2xl rounded-bl-sm bg-card/82 border border-border/70 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
                     {activeTools.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mb-1.5">
                         {activeTools.map((t, j) => (
-                          <span key={j} className="inline-flex items-center gap-1 text-[0.65rem] text-warning/80 font-mono">
+                          <span key={j} className="inline-flex items-center gap-1 text-[0.65rem] text-primary-light/80 font-mono">
                             <Loader2 className="size-2.5 animate-spin" />{t}
                           </span>
                         ))}
                       </div>
                     )}
-                    <div className="prose prose-sm prose-invert max-w-none">
+                    <div className="agent-markdown prose prose-sm max-w-none">
                       <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{streamingText}</ReactMarkdown>
                       <span className="cursor-blink text-muted-foreground/40">|</span>
                     </div>
@@ -721,7 +843,7 @@ function AgentView({
                     className="text-xs text-muted-foreground/50 hover:text-destructive cursor-pointer bg-transparent border-0 flex items-center gap-1 transition-colors"
                     onClick={abort}
                   >
-                    <Square className="size-3" /> Stop
+                    <Square className="size-3" /> {t("stop")}
                   </button>
                 </div>
               )}
@@ -738,7 +860,7 @@ function AgentView({
                   alt="Screen"
                   className="h-16 w-auto rounded border border-border"
                 />
-                <span className="text-xs text-muted-foreground/40">Latest screenshot</span>
+                <span className="text-xs text-muted-foreground/40">{t("latestScreenshot")}</span>
               </div>
             )}
 
@@ -748,7 +870,7 @@ function AgentView({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Describe what you want the agent to do..."
+                placeholder={t("describeInput")}
                 rows={1}
                 disabled={sending}
                 className="flex-1 min-w-0 min-h-[38px] max-h-[120px] rounded-xl text-sm py-2.5 px-3"
@@ -777,9 +899,9 @@ function AgentView({
 
               {/* VNC panel */}
               <div className="shrink-0 flex flex-col border-l border-sidebar-border" style={{ width: vnc.width }}>
-                <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-sidebar-border bg-sidebar-background shrink-0">
+                <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-sidebar-border bg-sidebar-background/90 backdrop-blur-sm shrink-0">
                   <Monitor className="size-3 text-primary" />
-                  <span className="text-xs font-medium text-muted-foreground">Device Screen</span>
+                  <span className="font-mono text-[10px] uppercase tracking-[3px] text-primary">{t("deviceScreen")}</span>
                   <div className="flex-1" />
                   <Button variant="ghost" size="icon" className="size-5" onClick={() => vnc.setIsOpen(false)} title="Close">
                     <X className="size-3" />
@@ -797,7 +919,7 @@ function AgentView({
 
 // ── Config Editor (app.json) ────────────────────────────────────
 
-function ConfigEditor({ slug, onBack }: { slug: string; onBack: () => void }) {
+function ConfigEditor({ language, theme, onToggleTheme, onToggleLanguage, t, slug, onBack }: { language: Language; theme: Theme; onToggleTheme: () => void; onToggleLanguage: () => void; t: (key: string, vars?: Record<string, string | number>) => string; slug: string; onBack: () => void }) {
   const [config, setConfig] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -833,24 +955,26 @@ function ConfigEditor({ slug, onBack }: { slug: string; onBack: () => void }) {
 
   return (
     <>
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0">
+      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0 bg-background/90 backdrop-blur-sm">
         <Button variant="ghost" size="icon" className="size-8" onClick={onBack}>
           <ArrowLeft className="size-4" />
         </Button>
         <FileText className="size-4 text-muted-foreground" />
-        <span className="text-sm font-semibold">app.json</span>
+        <span className="text-sm font-semibold font-[var(--font-display)]">{t("appJson")}</span>
         <span className="text-xs font-mono text-muted-foreground/60">kiosk_apps/{slug}/</span>
         <div className="flex-1" />
+        <LanguageToggleButton language={language} onToggle={onToggleLanguage} t={t} />
+        <ThemeToggleButton theme={theme} onToggle={onToggleTheme} t={t} />
         <Button size="sm" onClick={save} disabled={saving}>
           {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-          Save
+          {t("save")}
         </Button>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-2xl mx-auto">
           {error && (
-            <div className="text-sm text-destructive mb-3 p-2 rounded bg-destructive/10 border border-destructive/20">
+            <div className="text-sm text-destructive mb-3 p-3 rounded bg-tint-accent border-l-[3px] border-destructive">
               {error}
             </div>
           )}
@@ -868,7 +992,7 @@ function ConfigEditor({ slug, onBack }: { slug: string; onBack: () => void }) {
 
 // ── Env Editor (.env key-value) ─────────────────────────────────
 
-function EnvEditor({ slug, onBack }: { slug: string; onBack: () => void }) {
+function EnvEditor({ language, theme, onToggleTheme, onToggleLanguage, t, slug, onBack }: { language: Language; theme: Theme; onToggleTheme: () => void; onToggleLanguage: () => void; t: (key: string, vars?: Record<string, string | number>) => string; slug: string; onBack: () => void }) {
   const [vars, setVars] = useState<[string, string][]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -909,17 +1033,19 @@ function EnvEditor({ slug, onBack }: { slug: string; onBack: () => void }) {
 
   return (
     <>
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0">
+      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0 bg-background/90 backdrop-blur-sm">
         <Button variant="ghost" size="icon" className="size-8" onClick={onBack}>
           <ArrowLeft className="size-4" />
         </Button>
         <Settings className="size-4 text-muted-foreground" />
-        <span className="text-sm font-semibold">.env</span>
+        <span className="text-sm font-semibold font-[var(--font-display)]">.env</span>
         <span className="text-xs font-mono text-muted-foreground/60">kiosk_apps/{slug}/</span>
         <div className="flex-1" />
+        <LanguageToggleButton language={language} onToggle={onToggleLanguage} t={t} />
+        <ThemeToggleButton theme={theme} onToggle={onToggleTheme} t={t} />
         <Button size="sm" onClick={save} disabled={saving}>
           {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-          Save
+          {t("save")}
         </Button>
       </header>
 
@@ -947,12 +1073,12 @@ function EnvEditor({ slug, onBack }: { slug: string; onBack: () => void }) {
           ))}
 
           <Button variant="ghost" size="sm" className="self-start mt-2" onClick={addRow}>
-            <Plus className="size-3.5" /> Add Variable
+            <Plus className="size-3.5" /> {t("addVariable")}
           </Button>
 
           {vars.length === 0 && (
             <div className="text-center text-muted-foreground/40 py-12 text-sm">
-              No environment variables. Click "Add Variable" to create one.
+              {t("noEnvVars")}
             </div>
           )}
         </div>
@@ -963,7 +1089,7 @@ function EnvEditor({ slug, onBack }: { slug: string; onBack: () => void }) {
 
 // ── Create App ──────────────────────────────────────────────────
 
-function CreateApp({ onBack, onCreated }: { onBack: () => void; onCreated: (slug: string) => void }) {
+function CreateApp({ language, theme, onToggleTheme, onToggleLanguage, t, onBack, onCreated }: { language: Language; theme: Theme; onToggleTheme: () => void; onToggleLanguage: () => void; t: (key: string, vars?: Record<string, string | number>) => string; onBack: () => void; onCreated: (slug: string) => void }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<"greeting" | "custom">("custom");
@@ -993,28 +1119,31 @@ function CreateApp({ onBack, onCreated }: { onBack: () => void; onCreated: (slug
 
   return (
     <>
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0">
+      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0 bg-background/90 backdrop-blur-sm">
         <Button variant="ghost" size="icon" className="size-8" onClick={onBack}>
           <ArrowLeft className="size-4" />
         </Button>
         <Plus className="size-4 text-muted-foreground" />
-        <span className="text-sm font-semibold">New App</span>
+        <span className="text-sm font-semibold font-[var(--font-display)]">{t("newApp")}</span>
+        <div className="flex-1" />
+        <LanguageToggleButton language={language} onToggle={onToggleLanguage} t={t} />
+        <ThemeToggleButton theme={theme} onToggle={onToggleTheme} t={t} />
       </header>
 
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-md mx-auto flex flex-col gap-4">
           {error && (
-            <div className="text-sm text-destructive p-2 rounded bg-destructive/10 border border-destructive/20">
+            <div className="text-sm text-destructive p-3 rounded bg-tint-accent border-l-[3px] border-destructive">
               {error}
             </div>
           )}
 
           <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Name</label>
+            <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">{t("name")}</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="My App"
+              placeholder={t("newApp")}
               autoFocus
             />
             {slug && (
@@ -1025,47 +1154,47 @@ function CreateApp({ onBack, onCreated }: { onBack: () => void; onCreated: (slug
           </div>
 
           <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Description</label>
+            <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">{t("description")}</label>
             <Input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What this app does..."
+              placeholder={t("description")}
             />
           </div>
 
           <div>
-            <label className="text-xs text-muted-foreground mb-2 block">Type</label>
+            <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-2 block">{t("type")}</label>
             <div className="flex gap-2">
               <button
                 className={cn(
-                  "flex-1 p-3 rounded-lg border text-left transition-colors cursor-pointer",
+                  "flex-1 p-3 rounded-lg border text-left transition-colors cursor-pointer border-l-[3px]",
                   type === "custom"
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-card hover:bg-accent"
+                    ? "border-l-primary border-primary/40 bg-primary/10"
+                    : "border-l-transparent border-border bg-card hover:bg-accent"
                 )}
                 onClick={() => setType("custom")}
               >
                 <div className="text-sm font-medium flex items-center gap-2">
-                  <Code className="size-4" /> Custom Page
+                  <Code className="size-4" /> {t("customPage")}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  GTK page with full control. Agent can edit the code.
+                  {t("customPageDesc")}
                 </div>
               </button>
               <button
                 className={cn(
-                  "flex-1 p-3 rounded-lg border text-left transition-colors cursor-pointer",
+                  "flex-1 p-3 rounded-lg border text-left transition-colors cursor-pointer border-l-[3px]",
                   type === "greeting"
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-card hover:bg-accent"
+                    ? "border-l-primary border-primary/40 bg-primary/10"
+                    : "border-l-transparent border-border bg-card hover:bg-accent"
                 )}
                 onClick={() => setType("greeting")}
               >
                 <div className="text-sm font-medium flex items-center gap-2">
-                  <MessageSquare className="size-4" /> Greeting
+                  <MessageSquare className="size-4" /> {t("greetingType")}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  Simple text shown on lock screen. No code needed.
+                  {t("greetingTypeDesc")}
                 </div>
               </button>
             </div>
@@ -1073,7 +1202,7 @@ function CreateApp({ onBack, onCreated }: { onBack: () => void; onCreated: (slug
 
           {type === "greeting" && (
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Greeting Text</label>
+              <label className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">{t("greetingText")}</label>
               <Input
                 value={greeting}
                 onChange={(e) => setGreeting(e.target.value)}
@@ -1083,8 +1212,8 @@ function CreateApp({ onBack, onCreated }: { onBack: () => void; onCreated: (slug
           )}
 
           {type === "custom" && slug && (
-            <div className="text-xs text-muted-foreground/60 p-3 rounded bg-surface border border-border font-mono">
-              <div>Will create:</div>
+            <div className="text-xs text-muted-foreground/60 p-3 rounded bg-tint-accent border-l-[3px] border-primary/40 font-mono">
+              <div>{t("willCreate")}</div>
               <div className="mt-1">kiosk_apps/{slug}/app.json</div>
               <div>kiosk_apps/{slug}/.env</div>
               <div>gui/pages/{slug}.py</div>
@@ -1097,7 +1226,7 @@ function CreateApp({ onBack, onCreated }: { onBack: () => void; onCreated: (slug
             className="mt-2"
           >
             {creating ? <Loader2 className="size-4 animate-spin" /> : <Zap className="size-4" />}
-            Create App
+            {t("createApp")}
           </Button>
         </div>
       </div>

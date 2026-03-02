@@ -1,9 +1,17 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
     <title>FeralBoard Developer Portal</title>
+    <script>
+      (() => {
+        const stored = localStorage.getItem("feralboard-theme");
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const theme = stored === "light" || stored === "dark" ? stored : (prefersDark ? "dark" : "light");
+        document.documentElement.classList.toggle("dark", theme === "dark");
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

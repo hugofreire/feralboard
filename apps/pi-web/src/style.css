@@ -5,48 +5,136 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --color-background: #0d1117;
-  --color-foreground: #c9d1d9;
-  --color-card: #161b22;
-  --color-card-foreground: #c9d1d9;
-  --color-popover: #0d1117;
-  --color-popover-foreground: #c9d1d9;
-  --color-primary: #1f6feb;
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #21262d;
-  --color-secondary-foreground: #c9d1d9;
-  --color-muted: #161b22;
-  --color-muted-foreground: #8b949e;
-  --color-accent: #1c2128;
-  --color-accent-foreground: #c9d1d9;
-  --color-destructive: #da3633;
-  --color-destructive-foreground: #ffffff;
-  --color-border: #30363d;
-  --color-input: #30363d;
-  --color-ring: #1f6feb;
-  --color-link: #58a6ff;
-  --color-warning: #d29922;
-  --color-sidebar-background: #010409;
-  --color-sidebar-border: #21262d;
-  --color-surface: #1c2128;
+  --color-background: var(--theme-background);
+  --color-foreground: var(--theme-foreground);
+  --color-card: var(--theme-card);
+  --color-card-foreground: var(--theme-card-foreground);
+  --color-popover: var(--theme-popover);
+  --color-popover-foreground: var(--theme-popover-foreground);
+  --color-primary: var(--theme-primary);
+  --color-primary-foreground: var(--theme-primary-foreground);
+  --color-primary-dark: var(--theme-primary-dark);
+  --color-primary-light: var(--theme-primary-light);
+  --color-secondary: var(--theme-secondary);
+  --color-secondary-foreground: var(--theme-secondary-foreground);
+  --color-muted: var(--theme-muted);
+  --color-muted-foreground: var(--theme-muted-foreground);
+  --color-accent: var(--theme-accent);
+  --color-accent-foreground: var(--theme-accent-foreground);
+  --color-destructive: var(--theme-destructive);
+  --color-destructive-foreground: var(--theme-destructive-foreground);
+  --color-success: var(--theme-success);
+  --color-success-light: var(--theme-success-light);
+  --color-border: var(--theme-border);
+  --color-input: var(--theme-input);
+  --color-ring: var(--theme-ring);
+  --color-link: var(--theme-link);
+  --color-warning: var(--theme-warning);
+  --color-sidebar-background: var(--theme-sidebar-background);
+  --color-sidebar-border: var(--theme-sidebar-border);
+  --color-surface: var(--theme-surface);
+  --color-rule: var(--theme-rule);
+  --color-tint: var(--theme-tint);
+  --color-tint-accent: var(--theme-tint-accent);
+  --color-ink: var(--theme-ink);
+  --color-mid: var(--theme-mid);
   --radius: 0.5rem;
-  --font-mono: "SF Mono", "Fira Code", ui-monospace, monospace;
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", ui-monospace, monospace;
+  --font-display: "Outfit", system-ui, sans-serif;
+  --font-body: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+:root {
+  --theme-background: #f3f4f8;
+  --theme-foreground: #221d30;
+  --theme-card: #fcfbff;
+  --theme-card-foreground: #221d30;
+  --theme-popover: #fcfbff;
+  --theme-popover-foreground: #221d30;
+  --theme-primary: #7c3aed;
+  --theme-primary-foreground: #ffffff;
+  --theme-primary-dark: #5b21b6;
+  --theme-primary-light: #9f67ff;
+  --theme-secondary: #ebe8f5;
+  --theme-secondary-foreground: #2c2440;
+  --theme-muted: #f0eef7;
+  --theme-muted-foreground: #6d6780;
+  --theme-accent: #f3f0fb;
+  --theme-accent-foreground: #241f33;
+  --theme-destructive: #c0392b;
+  --theme-destructive-foreground: #ffffff;
+  --theme-success: #1f8b4c;
+  --theme-success-light: rgba(31, 139, 76, 0.12);
+  --theme-border: #d8d2ea;
+  --theme-input: #d8d2ea;
+  --theme-ring: #7c3aed;
+  --theme-link: #7c3aed;
+  --theme-warning: #b97818;
+  --theme-sidebar-background: #ece8f6;
+  --theme-sidebar-border: #d6d0e8;
+  --theme-surface: #f6f4fb;
+  --theme-rule: #d6d0e8;
+  --theme-tint: #f1eef9;
+  --theme-tint-accent: rgba(124, 58, 237, 0.08);
+  --theme-ink: #221d30;
+  --theme-mid: #756f89;
+}
+
+.dark {
+  --theme-background: #0d0d14;
+  --theme-foreground: #e2e4e9;
+  --theme-card: #141420;
+  --theme-card-foreground: #e2e4e9;
+  --theme-popover: #0d0d14;
+  --theme-popover-foreground: #e2e4e9;
+  --theme-primary: #7c3aed;
+  --theme-primary-foreground: #ffffff;
+  --theme-primary-dark: #5b21b6;
+  --theme-primary-light: #a78bfa;
+  --theme-secondary: #1a1a2a;
+  --theme-secondary-foreground: #e2e4e9;
+  --theme-muted: #141420;
+  --theme-muted-foreground: #8b8fa0;
+  --theme-accent: #1e1b30;
+  --theme-accent-foreground: #e2e4e9;
+  --theme-destructive: #da3633;
+  --theme-destructive-foreground: #ffffff;
+  --theme-success: #22c55e;
+  --theme-success-light: rgba(34, 197, 94, 0.12);
+  --theme-border: #2a2a3d;
+  --theme-input: #2a2a3d;
+  --theme-ring: #7c3aed;
+  --theme-link: #a78bfa;
+  --theme-warning: #d29922;
+  --theme-sidebar-background: #0a0a12;
+  --theme-sidebar-border: #1e1e30;
+  --theme-surface: #1a1a2a;
+  --theme-rule: #2a2a3d;
+  --theme-tint: #141420;
+  --theme-tint-accent: rgba(124, 58, 237, 0.06);
+  --theme-ink: #e2e4e9;
+  --theme-mid: #8b8fa0;
 }
 
 /* ── Base (inside @layer so utility classes can override) ── */
 
 @layer base {
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--font-body);
     background: var(--color-background);
     color: var(--color-foreground);
     height: 100dvh;
     overflow: hidden;
     -webkit-font-smoothing: antialiased;
+    transition: background-color 160ms ease, color 160ms ease;
   }
 
   #root {
     height: 100dvh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
   }
 }
 
@@ -69,9 +157,61 @@
   .cursor-blink { animation: blink-cursor 1s step-end infinite; }
 }
 
+@layer utilities {
+  .hide-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  .purple-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--color-primary) 58%, transparent) transparent;
+  }
+
+  .purple-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .purple-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .purple-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-primary-light) 82%, transparent),
+      color-mix(in srgb, var(--color-primary-dark) 74%, transparent)
+    );
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--color-background) 72%, transparent);
+  }
+
+  .purple-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-primary-light) 92%, transparent),
+      color-mix(in srgb, var(--color-primary) 82%, transparent)
+    );
+  }
+}
+
 /* ── Prose overrides ──────────────────────────────────── */
 
 @layer base {
+  .agent-markdown {
+    color: var(--color-foreground);
+  }
+
+  .agent-markdown :where(p, li, strong, em, code, pre, blockquote, h1, h2, h3, h4, h5, h6, a, th, td) {
+    color: inherit;
+  }
+
   .prose :where(code):not(:where([class~="not-prose"] *)) {
     background: var(--color-surface);
     padding: 0.15em 0.4em;

@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import RFB from "@novnc/novnc";
 import { Button } from "@/components/ui/button";
+import type { Language } from "./i18n";
+import { translate } from "./i18n";
 import {
   ArrowLeft, Maximize2, Minimize2, Monitor, Loader2, WifiOff,
 } from "lucide-react";
@@ -71,15 +73,16 @@ export function VncPanel({ className }: { className?: string }) {
 
 // ── Full-page VNC viewer ────────────────────────────────────────
 
-export default function VncViewer({ onBack }: { onBack: () => void }) {
+export default function VncViewer({ onBack, language }: { onBack: () => void; language: Language }) {
+  const t = (key: string, vars?: Record<string, string | number>) => translate(language, key, vars);
   return (
     <div className="h-dvh flex flex-col bg-background text-foreground overflow-hidden">
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0">
+      <header className="flex items-center gap-2 px-3 py-2 border-b border-sidebar-border shrink-0 bg-background/90 backdrop-blur-sm">
         <Button variant="ghost" size="icon" className="size-8" onClick={onBack}>
           <ArrowLeft className="size-4" />
         </Button>
         <Monitor className="size-4 text-primary" />
-        <span className="text-sm font-semibold">Device Screen</span>
+        <span className="text-sm font-semibold font-[var(--font-display)]">{t("deviceScreen")}</span>
         <span className="text-xs font-mono text-muted-foreground/60">VNC</span>
       </header>
       <VncPanel className="flex-1" />
