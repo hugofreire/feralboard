@@ -3,7 +3,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CodeBlock, MarkdownCode } from "@/components/CodeBlock";
@@ -314,9 +313,7 @@ function Dashboard({
     <>
       {/* Header */}
       <header className="flex items-center gap-3 px-4 py-3 border-b border-sidebar-border shrink-0 bg-background/90 backdrop-blur-sm">
-        <span className="text-base font-semibold font-[var(--font-display)]">
-          <span className="text-primary-light">Feral</span>{t("portalTitle").replace("Feral", "")}
-        </span>
+        <span className="text-base font-semibold font-[var(--font-display)] text-primary-light">FeralBuilder</span>
         <div className="flex-1" />
         <Button variant="ghost" size="sm" onClick={onOpenVnc} title={t("deviceScreen")}>
           <Monitor className="size-3.5" />
@@ -363,9 +360,6 @@ function Dashboard({
                     <div className="font-mono text-[11px] uppercase tracking-wider font-semibold truncate">{app.name}</div>
                     <div className="text-xs text-muted-foreground mt-0.5 truncate">{app.description}</div>
                   </div>
-                  <Badge variant={app.type === "custom" ? "primary" : "default"} className="shrink-0 ml-2">
-                    {app.type === "custom" ? "custom" : "greeting"}
-                  </Badge>
                 </div>
 
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60 font-mono">
@@ -383,8 +377,8 @@ function Dashboard({
                     <Settings className="size-3.5" /> {t("env")}
                   </Button>
                   {app.type === "custom" && (
-                    <Button size="sm" onClick={() => onOpenAgent(app.slug)} title={t("agent")}>
-                      <Code className="size-3.5" /> {t("agent")}
+                    <Button size="sm" onClick={() => onOpenAgent(app.slug)} title={t("open")}>
+                      <Code className="size-3.5" /> {t("open")}
                     </Button>
                   )}
                   <div className="flex-1" />
