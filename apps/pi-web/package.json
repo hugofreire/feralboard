@@ -6,7 +6,8 @@
   "scripts": {
     "dev:server": "tsx watch server/index.ts",
     "dev:client": "vite",
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\""
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build": "vite build"
   },
   "dependencies": {
     "@mariozechner/pi-coding-agent": "^0.53.0",

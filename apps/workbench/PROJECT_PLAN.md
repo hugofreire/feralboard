@@ -2,7 +2,7 @@
 
 ## Objective
 
-Create `/home/pi/apps/feralboard-workbench/` — a single self-contained repo that consolidates:
+Create `/home/pi/apps/feralboard/apps/workbench/` — the workbench app inside the monorepo:
 
 - **Firmware source** + build/flash tooling (from `feralboard-sdk/firmware/`)
 - **Python serial library** (extracted from `program-firmware-arduino-uno/board_tester.py`)

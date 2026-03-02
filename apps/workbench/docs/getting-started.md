@@ -9,7 +9,7 @@
 ## Installation
 
 ```bash
-cd /home/pi/apps/feralboard-workbench
+cd /home/pi/apps/feralboard/apps/workbench
 sudo bash setup.sh
 ```
 

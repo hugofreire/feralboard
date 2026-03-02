@@ -21,7 +21,7 @@ FeralBoard Developer Portal — a web-based tool for managing kiosk apps on the 
 
 ## Configuration (env vars)
 
-- `FERALBOARD_PATH` — path to feralboard-workbench (default: `/home/pi/apps/feralboard-workbench`)
+- `FERALBOARD_PATH` — path to workbench (default: `/home/pi/apps/feralboard/apps/workbench`)
 - `OPENAI_API_KEY` — API key for the Pi agent
 - `PI_PROVIDER` — LLM provider (default: `openai`)
 - `PI_MODEL` — model ID (default: `o3-mini`)

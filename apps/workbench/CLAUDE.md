@@ -194,7 +194,7 @@ bash scripts/run.sh &
 
 # 3. Screenshot and view (kill grim if it hangs!)
 bash scripts/screenshot.sh
-# Read /home/pi/apps/feralboard-workbench/screen.png
+# Read /home/pi/apps/feralboard/apps/workbench/screen.png
 
 # 4. Send commands
 bash scripts/send.sh navigate outputs

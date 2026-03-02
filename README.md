@@ -16,3 +16,9 @@ Notes:
 - Original standalone Git repositories remain unchanged in `/home/pi/apps/*`.
 - This workspace is a source snapshot, not a history-preserving migration.
 - Build artifacts and nested `.git` directories are intentionally excluded.
+
+Node bootstrap:
+
+- `npm run install:node-apps`
+- `npm run build:pi-web`
+- `npm run build:website`

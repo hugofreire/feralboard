@@ -13,3 +13,8 @@ Recommended next steps:
 2. Decide whether to convert `apps/workbench` from `requirements.txt` to `pyproject.toml`.
 3. Extract only proven shared TypeScript code into `packages/ui` or `packages/shared-types`.
 4. Introduce one CI pipeline that runs app-specific jobs without coupling their toolchains.
+
+Current bootstrap:
+
+- Root Node commands use `npm --prefix` for reliability on this machine.
+- `pnpm-workspace.yaml` remains in place as a future option once package manager setup is standardized.

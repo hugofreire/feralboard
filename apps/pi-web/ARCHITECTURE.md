@@ -40,7 +40,7 @@ How the Pi Coding Agent, the web portal, and the FeralBoard Workbench fit togeth
                        │ reads/writes files, runs commands
                        │
 ┌──────────────────────▼──────────────────────────────────────────┐
-│  FeralBoard Workbench (/home/pi/apps/feralboard-workbench)      │
+│  FeralBoard Workbench (/home/pi/apps/feralboard/apps/workbench) │
 │  The actual kiosk system running on the Pi                      │
 │                                                                 │
 │  ├── firmware/     — ATmega4809 firmware (serial protocol)      │
@@ -108,7 +108,7 @@ data: {"type": "done"}
 The server reads and writes files directly in the workbench repo. No agent involved for CRUD operations — this is pure `fs.readFileSync` / `fs.writeFileSync`.
 
 ```
-FERALBOARD_PATH = /home/pi/apps/feralboard-workbench
+FERALBOARD_PATH = /home/pi/apps/feralboard/apps/workbench
 
 GET  /api/apps          → scan kiosk_apps/*/app.json
 POST /api/apps          → mkdir kiosk_apps/<slug>/, write app.json, generate gui/pages/<slug>.py
@@ -128,7 +128,7 @@ GET  /api/system/screenshot   → serve screen.png
 This is where the magic happens. The agent's CWD is set to the workbench root:
 
 ```
-CWD: /home/pi/apps/feralboard-workbench
+CWD: /home/pi/apps/feralboard/apps/workbench
 ```
 
 **Context loading (automatic, by Pi):**

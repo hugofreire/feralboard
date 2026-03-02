@@ -25,7 +25,7 @@ AI coding agent to modify app code — all scoped to the kiosk app ecosystem.
                    │ stdin/stdout JSON RPC
 ┌──────────────────▼──────────────────────────────┐
 │  Pi Coding Agent (--mode rpc)                   │
-│  CWD: /home/pi/apps/feralboard-workbench        │
+│  CWD: /home/pi/apps/feralboard/apps/workbench   │
 │  Reads: CLAUDE.md + kiosk_apps/CLAUDE.md        │
 │  Provider: openai, Model: configurable          │
 └─────────────────────────────────────────────────┘
@@ -33,7 +33,7 @@ AI coding agent to modify app code — all scoped to the kiosk app ecosystem.
 
 ## Configuration
 
-- `FERALBOARD_PATH` env var → path to feralboard-workbench (default: `/home/pi/apps/feralboard-workbench`)
+- `FERALBOARD_PATH` env var → path to workbench (default: `/home/pi/apps/feralboard/apps/workbench`)
 - `OPENAI_API_KEY` env var → OpenAI API key for Pi agent
 - Default provider: `openai`, default model: configurable at startup
 

@@ -1,13 +1,15 @@
 {
   "name": "feralboard",
   "private": true,
-  "packageManager": "pnpm@10",
   "scripts": {
-    "dev:pi-web": "pnpm --dir apps/pi-web dev",
-    "dev:website": "pnpm --dir apps/website dev",
-    "build:pi-web": "pnpm --dir apps/pi-web build",
-    "build:website": "pnpm --dir apps/website build",
-    "lint:website": "pnpm --dir apps/website lint",
-    "test:website": "pnpm --dir apps/website test"
+    "install:pi-web": "npm --prefix apps/pi-web install",
+    "install:website": "npm --prefix apps/website install",
+    "install:node-apps": "npm run install:pi-web && npm run install:website",
+    "dev:pi-web": "npm --prefix apps/pi-web run dev",
+    "dev:website": "npm --prefix apps/website run dev",
+    "build:pi-web": "npm --prefix apps/pi-web run build",
+    "build:website": "npm --prefix apps/website run build",
+    "lint:website": "npm --prefix apps/website run lint",
+    "test:website": "npm --prefix apps/website run test"
   }
 }
