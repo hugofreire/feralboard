@@ -12,3 +12,8 @@ __pycache__/
 *.pyo
 site/
 screen.png
+
+# Knowledgebase PDFs and archive (110MB+ of Siemens manuals)
+apps/pi-web/knowledgebase/*.pdf
+apps/pi-web/knowledgebase/*.tar.gz
+apps/pi-web/knowledgebase/prescan.json
