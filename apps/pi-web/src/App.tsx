@@ -542,7 +542,8 @@ function AgentView({
   const buildScopePrefix = () => [
     `[Context: You are working on the kiosk app "${appName}" (slug: "${slug}").`,
     `Files in scope: kiosk_apps/${slug}/app.json, kiosk_apps/${slug}/.env, gui/pages/${slug}.py`,
-    `Read kiosk_apps/CLAUDE.md for the full development guide. Read the app files before making changes.]`,
+    `Read kiosk_apps/CLAUDE.md for the full development guide. Read the app files before making changes.`,
+    `A Siemens PLC knowledgebase is available at ../pi-web/knowledgebase/ with extracted communication references for LOGO! 8, S7-1200, S7-1500, S7-200, S7-300, and S7-400. Start with plc_reference_index.md for an overview, then read the relevant *_communication_reference.md file. Use this when you need Modbus register mappings, protocol details, connection parameters, or I/O addressing for Siemens PLCs.]`,
     ``,
   ].join("\n");
 
