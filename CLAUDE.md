@@ -39,6 +39,31 @@ This repository is a non-destructive monorepo created by copying the current sta
 - `apps/website` can build on this machine, but Puppeteer prerender is not reliable on this ARM setup.
 - Disk space is limited. Avoid large transient downloads and clean caches when possible.
 
+## Pi-Coding Agent (how to steer it)
+
+The pi-web app embeds a coding agent that edits kiosk apps. Here's how its context is wired:
+
+### Scope prefix (system-prompt-like injection)
+- **File**: `apps/pi-web/src/App.tsx` → `buildScopePrefix()` (~line 542)
+- This function builds the text prepended to the user's **first message** in each session.
+- It tells the agent which app it's scoped to, which files to read, and any reference material.
+- To add new context the agent should always see (e.g. a knowledgebase, new libraries), add a line here.
+
+### Agent's CLAUDE.md files (auto-loaded by parent-dir walking)
+- `apps/workbench/CLAUDE.md` — project-level context (serial protocol, GPIO, wayland, git, iterative workflow)
+- `apps/workbench/kiosk_apps/CLAUDE.md` — kiosk app development guide (app types, page contract, GTK patterns, I/O reference, available libraries)
+- The agent's CWD is `FERALBOARD_PATH` (defaults to `apps/workbench`), so both files are found automatically.
+
+### Agent CWD and path resolution
+- Set in `apps/pi-web/server/index.ts` → `FERALBOARD_PATH` (env var, defaults to `apps/workbench`)
+- The agent sees files relative to this path. To reference pi-web files from the agent, use `../pi-web/...`.
+
+### Knowledgebase
+- `apps/pi-web/knowledgebase/` — Siemens PLC communication references extracted from 12 PDF manuals.
+- PDFs are gitignored (archived locally as `siemens_plc_manuals.tar.gz`). Only the `.md` outputs and extraction scripts are tracked.
+- `plc_reference_index.md` is the entry point with a protocol support matrix across all PLC families.
+- The agent is told about this in the scope prefix so it can look up Modbus mappings, protocol details, etc.
+
 ## References
 
 - Architecture plan: `docs/architecture/monorepo-plan.md`
