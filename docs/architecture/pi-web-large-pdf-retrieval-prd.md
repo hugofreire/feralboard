@@ -1,5 +1,23 @@
 # PRD: pi-web Large PDF Retrieval Pipeline for Agent Chat
 
+## Status
+
+Implemented in branch `feat/pi-web-large-pdf-retrieval` on March 9, 2026.
+
+Current status:
+
+- implemented: large-PDF threshold switch at `pages > 30`
+- implemented: server-side document storage under `apps/pi-web/uploads/documents/<document-id>/`
+- implemented: page-level text extraction and manifest storage
+- implemented: retrieval-first agent prompt for large PDFs
+- implemented: agent tools `document_manifest`, `document_search`, `document_read_pages`
+- implemented: attachment cards and staged processing UI in chat
+- implemented: dev-mode redirect from `:3001` to the Vite client to avoid stale `dist` assets during local development
+- deferred: chunk storage
+- deferred: embeddings / semantic retrieval
+- deferred: OCR
+- deferred: manifest preview UI and richer document inspector actions
+
 ## Summary
 
 `apps/pi-web` currently lets users attach files to the agent chat. For PDFs, the server extracts text and exposes the extracted file path to the agent. This works for small documents, but it does not scale well for large PDFs because the agent can end up operating on too much raw text at once.
@@ -11,6 +29,31 @@ This PRD defines a large-document pipeline for PDFs with more than 30 pages. The
 - give the agent a retrieval-oriented workflow instead
 
 The result should be lower context usage, more reliable document analysis, and better behavior on long manuals, specs, and reports.
+
+## Current Shipped Flow
+
+### Small PDF flow
+
+- upload PDF
+- if `pages <= 30`, extract full text to `uploads/<file>.txt`
+- attach the file to chat with the extracted text path
+- agent can read the extracted text file directly
+
+### Large PDF flow
+
+- upload PDF
+- if `pages > 30`, generate a `documentId`
+- move the original PDF into `apps/pi-web/uploads/documents/<document-id>/original.pdf`
+- extract text page by page into `pages/0001.txt`, `0002.txt`, ...
+- write `manifest.json`
+- return a `large_document` attachment payload to the UI
+- show a staged processing / indexed attachment card in chat
+- inject only the document id, manifest path, page count, and retrieval instructions into the agent prompt
+- agent should call `document_manifest` first, then `document_search`, then `document_read_pages`
+
+### Why this version stops here
+
+The current implementation intentionally uses page-level lexical retrieval only. That keeps the first version debuggable on-device and avoids premature complexity from chunks, embeddings, and OCR.
 
 ## Problem
 
@@ -57,12 +100,12 @@ For large PDFs, the server should generate and persist:
 
 - original PDF file
 - extracted text split by page
-- chunked text representation for retrieval
+- chunked text representation for retrieval (deferred in current implementation)
 - manifest JSON containing:
   - document id
   - original filename
   - page count
-  - chunk count
+  - chunk count (optional / deferred for now)
   - storage paths
   - extraction status
   - optional section or heading metadata if available
@@ -83,13 +126,11 @@ Instead, the agent should receive:
 
 The server should expose endpoints for document exploration. Initial examples:
 
-- `GET /api/documents`
 - `GET /api/documents/:id/manifest`
 - `GET /api/documents/:id/pages?page=...`
 - `GET /api/documents/:id/search?q=...`
-- `GET /api/documents/:id/chunks?ids=...`
 
-These endpoints should be enough to support both UI inspection and agent-side retrieval.
+Current implementation ships only manifest, page-read, search, and delete paths. A document listing endpoint and chunk endpoint are still optional future work.
 
 ### 5. Agent tooling
 
@@ -98,7 +139,8 @@ The preferred implementation is to expose one or more custom agent tools for doc
 - `document_manifest`
 - `document_search`
 - `document_read_pages`
-- `document_read_chunks`
+
+`document_read_chunks` is deferred until chunk storage exists.
 
 This is better than forcing the model to manually inspect raw files because it gives the agent a narrower, cheaper retrieval path.
 
@@ -117,6 +159,8 @@ Optional quick actions:
 - `Open manifest`
 - `Preview pages`
 - `Search document`
+
+Current implementation ships the attachment card states but not the quick-action inspector UI.
 
 ### 7. Failure handling
 
@@ -148,8 +192,7 @@ This should feel deliberate and safer than the small-PDF flow.
 4. If large:
    - create a document id
    - extract page text
-   - create chunks
-   - write manifest and retrieval artifacts
+   - write manifest and page retrieval artifacts
    - return a structured `large_document` attachment result
 
 ### Storage layout
@@ -163,8 +206,6 @@ apps/pi-web/uploads/documents/<document-id>/
   pages/
     0001.txt
     0002.txt
-  chunks/
-    chunks.json
 ```
 
 ### Prompting strategy
@@ -182,7 +223,7 @@ Read the manifest first, search for relevant sections, then read only the needed
 
 ### Search strategy
 
-Initial implementation can use simple local text search over page text or chunk text.
+Initial implementation can use simple local text search over page text.
 
 This is enough for a first version and keeps the system simple. Embeddings can be a later improvement if needed.
 
@@ -240,13 +281,15 @@ Mitigation:
 
 - page threshold detection
 - manifest generation
-- page and chunk storage
+- page storage
 - retrieval endpoints
 - prompt changes for large PDFs
+- staged attachment card UI
+- custom agent retrieval tools
 
 ### Phase 2
 
-- custom agent retrieval tools
+- chunk storage if page-level retrieval is not enough
 - improved UI badges and manifest preview
 - better search ranking
 
