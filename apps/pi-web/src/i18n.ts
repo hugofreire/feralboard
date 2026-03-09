@@ -101,7 +101,7 @@ export function translate(language: Language, key: string, vars?: Record<string,
   let value = dictionaries[language][key] ?? dictionaries.en[key] ?? key;
   if (vars) {
     for (const [name, replacement] of Object.entries(vars)) {
-      value = value.replaceAll(`{${name}}`, String(replacement));
+      value = value.split(`{${name}}`).join(String(replacement));
     }
   }
   return value;

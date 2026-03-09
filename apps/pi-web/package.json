@@ -11,6 +11,7 @@
     "postinstall": "patch-package"
   },
   "dependencies": {
+    "@deepgram/sdk": "^5.0.0",
     "@mariozechner/pi-coding-agent": "^0.53.0",
     "@novnc/novnc": "github:novnc/noVNC",
     "@tailwindcss/typography": "^0.5.19",

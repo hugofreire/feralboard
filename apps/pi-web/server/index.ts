@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import multer from "multer";
+import { createReadStream } from "fs";
 // @ts-ignore – pdfjs-dist legacy build has no TS declarations
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { spawn, execSync, spawnSync } from "child_process";
@@ -19,6 +20,7 @@ import {
   createCodingTools,
   type AgentSession,
 } from "@mariozechner/pi-coding-agent";
+import { DeepgramClient } from "@deepgram/sdk";
 import { Type } from "@sinclair/typebox";
 
 const app = express();
@@ -32,6 +34,8 @@ const MONOREPO_ROOT = path.resolve(PI_WEB_ROOT, "..", "..");
 const DEFAULT_FERALBOARD_PATH = path.join(MONOREPO_ROOT, "apps", "workbench");
 const DEV_CLIENT_URL = process.env.PI_WEB_DEV_CLIENT_URL || "http://localhost:5173";
 const SERVE_DIST_CLIENT = process.env.PI_WEB_SERVE_DIST === "1";
+const BRAVE_SEARCH_API_KEY = process.env.BRAVE_SEARCH_API_KEY || "";
+const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || "";
 const DISPLAY_ASSETS_DIR = path.join(PI_WEB_ROOT, ".pi", "display-assets");
 const DISPLAY_SCRIPT_PATH = path.join(PI_WEB_ROOT, "server", "scripts", "setup_display.sh");
 const SWAY_CONFIG_PATH = "/etc/sway/config.d/99-custom-config";
@@ -52,6 +56,7 @@ const DOCUMENTS_DIR = path.join(UPLOADS_DIR, "documents");
 const LARGE_PDF_PAGE_THRESHOLD = Number(process.env.PDF_LARGE_PAGE_THRESHOLD || 30);
 const DOCUMENT_SEARCH_RESULT_LIMIT = 5;
 const DOCUMENT_READ_PAGE_LIMIT = 5;
+const AUDIO_TRANSCRIPTION_EXTENSIONS = new Set([".m4a", ".mp3", ".wav", ".webm", ".mp4", ".mpeg", ".mpga", ".ogg"]);
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 if (!fs.existsSync(DOCUMENTS_DIR)) fs.mkdirSync(DOCUMENTS_DIR, { recursive: true });
 
@@ -70,10 +75,11 @@ const upload = multer({
 
 // ── In-Process SDK Session Management ───────────────────────────
 
-const authStorage = new AuthStorage();
+const authStorage = AuthStorage.create();
 if (process.env.OPENAI_API_KEY) authStorage.setRuntimeApiKey("openai", process.env.OPENAI_API_KEY);
 if (process.env.ANTHROPIC_API_KEY) authStorage.setRuntimeApiKey("anthropic", process.env.ANTHROPIC_API_KEY);
 const modelRegistry = new ModelRegistry(authStorage);
+const deepgramClient = DEEPGRAM_API_KEY ? new DeepgramClient({ apiKey: DEEPGRAM_API_KEY }) : null;
 
 // ── IPC Helper ──────────────────────────────────────────────────
 
@@ -183,6 +189,29 @@ const feralboardTools = [
       return {
         content: [{ type: "text" as const, text: response || "No widgets found." }],
         details: {},
+      };
+    },
+  },
+  {
+    name: "web_search",
+    label: "Web Search",
+    description: "Search the public web with Brave Search and return the top results with titles, URLs, and snippets. Use this for current documentation, library updates, APIs, or other information not already in the local codebase.",
+    parameters: Type.Object({
+      query: Type.String({ description: "Search query to run against Brave Search." }),
+      count: Type.Optional(Type.Number({ description: "Number of web results to return. Defaults to 5 and is capped at 10." })),
+    }),
+    async execute(_toolCallId: string, params: { query: string; count?: number }, signal?: AbortSignal) {
+      const query = params.query.trim();
+      if (!query) throw new Error("query is required");
+      const count = Math.max(1, Math.min(10, Math.floor(params.count ?? 5)));
+      const results = await searchBraveWeb(query, count, signal);
+      return {
+        content: [{ type: "text" as const, text: formatBraveResults(query, results) }],
+        details: {
+          query,
+          count,
+          results,
+        },
       };
     },
   },
@@ -311,6 +340,94 @@ function normalizePdfText(text: string) {
   return text.replace(/\s+/g, " ").trim();
 }
 
+function isAudioUpload(filename: string) {
+  return AUDIO_TRANSCRIPTION_EXTENSIONS.has(path.extname(filename).toLowerCase());
+}
+
+async function transcribeAudioFile(filePath: string) {
+  if (!deepgramClient) {
+    throw new Error("DEEPGRAM_API_KEY is not configured on the pi-web server");
+  }
+
+  const response = await deepgramClient.listen.v1.media.transcribeFile(
+    createReadStream(filePath),
+    {
+      model: "nova-3",
+      detect_language: true,
+      smart_format: true,
+      punctuate: true,
+      paragraphs: true,
+    }
+  );
+  if (!("results" in response)) {
+    throw new Error(`Deepgram accepted the file asynchronously (${response.request_id}); synchronous transcript not available`);
+  }
+
+  const transcript = normalizePdfText(
+    response.results?.channels?.[0]?.alternatives?.[0]?.transcript || ""
+  );
+  if (!transcript) {
+    throw new Error("Deepgram returned an empty transcript");
+  }
+
+  return {
+    transcript,
+    model: "nova-3",
+    duration: response.metadata?.duration,
+  };
+}
+
+type BraveWebResult = {
+  title?: string;
+  url?: string;
+  description?: string;
+};
+
+async function searchBraveWeb(query: string, count: number, signal?: AbortSignal) {
+  if (!BRAVE_SEARCH_API_KEY) {
+    throw new Error("BRAVE_SEARCH_API_KEY is not configured on the pi-web server");
+  }
+
+  const params = new URLSearchParams({
+    q: query,
+    count: String(count),
+    text_decorations: "0",
+    search_lang: "en",
+    country: "us",
+    safesearch: "moderate",
+  });
+  const response = await fetch(`https://api.search.brave.com/res/v1/web/search?${params.toString()}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      "X-Subscription-Token": BRAVE_SEARCH_API_KEY,
+    },
+    signal,
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Brave Search API error (${response.status}): ${body.slice(0, 200)}`);
+  }
+
+  const payload = await response.json() as { web?: { results?: BraveWebResult[] } };
+  return payload.web?.results ?? [];
+}
+
+function formatBraveResults(query: string, results: BraveWebResult[]) {
+  if (results.length === 0) {
+    return `No Brave Search web results found for "${query}".`;
+  }
+
+  const lines = [`Brave Search results for "${query}":`];
+  for (const [index, result] of results.entries()) {
+    lines.push(`${index + 1}. ${result.title || result.url || "Untitled result"}`);
+    if (result.url) lines.push(`   URL: ${result.url}`);
+    if (result.description) lines.push(`   Snippet: ${result.description}`);
+  }
+  return lines.join("\n");
+}
+
 async function extractPdfPages(filePath: string): Promise<PdfExtractionResult> {
   const data = new Uint8Array(fs.readFileSync(filePath));
   const doc = await getDocument({ data, useSystemFonts: true }).promise;
@@ -416,6 +533,10 @@ function deleteUploadedArtifact(filename: string) {
   const ext = path.extname(filePath);
   if (/\.pdf$/i.test(ext)) {
     const textPath = filePath.replace(/\.pdf$/i, ".txt");
+    if (fs.existsSync(textPath)) fs.unlinkSync(textPath);
+  }
+  if (isAudioUpload(filePath)) {
+    const textPath = `${filePath}.txt`;
     if (fs.existsSync(textPath)) fs.unlinkSync(textPath);
   }
 
@@ -933,6 +1054,19 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
         result.extractedText = textFilename;
         result.extractedTextPath = textPath;
       }
+    } catch (err: any) {
+      result.extractionError = err.message;
+    }
+  }
+  else if (isAudioUpload(originalname)) {
+    try {
+      const transcription = await transcribeAudioFile(filePath);
+      const textPath = `${filePath}.txt`;
+      fs.writeFileSync(textPath, transcription.transcript, "utf-8");
+      result.extractedTextPath = textPath;
+      result.transcriptionModel = transcription.model;
+      result.durationSeconds = transcription.duration;
+      result.transcriptSource = "deepgram";
     } catch (err: any) {
       result.extractionError = err.message;
     }

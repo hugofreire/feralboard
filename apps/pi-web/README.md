@@ -69,6 +69,8 @@ When you ask Pi to write code, fix bugs, or explore a codebase, it uses these to
 - Node.js 22+
 - Pi Coding Agent: `npm install -g @mariozechner/pi-coding-agent`
 - An API key for at least one provider (e.g., `OPENAI_API_KEY`)
+- Optional: `BRAVE_SEARCH_API_KEY` to enable the agent's `web_search` tool via Brave Search
+- Optional: `DEEPGRAM_API_KEY` to transcribe attached audio files such as `.m4a`
 
 ### Install & Run
 
@@ -82,6 +84,10 @@ npm run dev
 This starts both the API server (`:3001`) and the Vite dev server (`:5173`).
 
 Open http://localhost:5173
+
+If `BRAVE_SEARCH_API_KEY` is configured in `apps/pi-web/.env`, the in-browser coding agent also gets a `web_search` tool for live web lookups. The chat UI shows an in-progress search card while Brave queries are running.
+
+If `DEEPGRAM_API_KEY` is configured in `apps/pi-web/.env`, audio attachments such as `.m4a` are transcribed on upload and the resulting transcript file is attached to the chat context automatically.
 
 ### Access from another device
 

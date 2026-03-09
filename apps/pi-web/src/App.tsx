@@ -73,6 +73,9 @@ type UploadedAttachment = {
   manifestPath?: string;
   indexedOnServer?: boolean;
   threshold?: number;
+  transcriptSource?: string;
+  transcriptionModel?: string;
+  durationSeconds?: number;
 };
 
 type PendingUpload = {
@@ -81,6 +84,7 @@ type PendingUpload = {
   size: number;
   startedAt: number;
   isPdf: boolean;
+  isAudio: boolean;
 };
 
 const PENDING_FILE_STAGES = [
@@ -94,13 +98,50 @@ const PENDING_PDF_STAGES = [
   { label: "Indexing document", detail: "Preparing retrieval metadata for the agent." },
 ];
 
+const PENDING_AUDIO_STAGES = [
+  { label: "Uploading audio", detail: "Saving the audio attachment on the server." },
+  { label: "Transcribing audio", detail: "Sending the audio to Deepgram for speech-to-text." },
+  { label: "Preparing transcript", detail: "Writing the transcript file for the agent to read." },
+];
+
 const DEFAULT_PENDING_STAGE = {
   label: "Processing attachment",
   detail: "Preparing the attachment for chat.",
 };
 
+function formatToolLabel(tool: string, args?: Record<string, any>) {
+  if (tool === "web_search") {
+    const query = typeof args?.query === "string" ? args.query.trim() : "";
+    return query ? `web_search: ${query.slice(0, 80)}` : "web_search";
+  }
+  if (tool === "bash" && typeof args?.command === "string") {
+    return `${tool}: ${args.command.slice(0, 60)}`;
+  }
+  return tool;
+}
+
+function describeToolActivity(toolLabel: string) {
+  if (toolLabel.startsWith("web_search")) {
+    const query = toolLabel.includes(":") ? toolLabel.split(":").slice(1).join(":").trim() : "";
+    return {
+      title: "Searching the web",
+      detail: query ? `Querying Brave Search for "${query}".` : "Querying Brave Search.",
+      icon: "search" as const,
+    };
+  }
+  return {
+    title: "Agent working",
+    detail: toolLabel,
+    icon: "spinner" as const,
+  };
+}
+
 function formatAttachmentSize(size: number) {
   return size >= 1024 * 1024 ? `${(size / (1024 * 1024)).toFixed(1)} MB` : `${(size / 1024).toFixed(1)} KB`;
+}
+
+function isAudioAttachment(name: string) {
+  return /\.(m4a|mp3|wav|webm|mp4|mpeg|mpga|ogg)$/i.test(name);
 }
 
 function AttachmentCard({
@@ -113,11 +154,14 @@ function AttachmentCard({
   compact?: boolean;
 }) {
   const isLargeDocument = attachment.kind === "large_document";
+  const isAudioTranscript = Boolean(attachment.transcriptSource && attachment.extractedTextPath);
   const title = isLargeDocument ? (attachment.indexedOnServer ? "Large PDF indexed" : "Large PDF") : "Attached file";
   const subtitle = attachment.extractionError
     ? attachment.extractionError
     : isLargeDocument
       ? `Document ID ${attachment.documentId} • ${attachment.pages || 0} pages`
+      : isAudioTranscript
+        ? `${attachment.transcriptSource} transcript ready${attachment.transcriptionModel ? ` • ${attachment.transcriptionModel}` : ""}`
       : attachment.extractedTextPath
         ? `${attachment.pages || 0} pages extracted for direct reading`
         : `${formatAttachmentSize(attachment.size)}`;
@@ -171,7 +215,12 @@ function AttachmentCard({
             )}
             {!isLargeDocument && attachment.extractedTextPath && !attachment.extractionError && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-600">
-                <Check className="size-3" /> Extracted text ready
+                <Check className="size-3" /> {isAudioTranscript ? "Transcript ready" : "Extracted text ready"}
+              </span>
+            )}
+            {isAudioTranscript && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[11px] text-primary">
+                <Search className="size-3" /> Deepgram
               </span>
             )}
             <span className="inline-flex items-center gap-1 rounded-full bg-foreground/5 px-2 py-1 text-[11px] text-muted-foreground">
@@ -191,7 +240,7 @@ function PendingAttachmentCard({
   upload: PendingUpload;
   stageIndex: number;
 }) {
-  const stages = upload.isPdf ? PENDING_PDF_STAGES : PENDING_FILE_STAGES;
+  const stages = upload.isPdf ? PENDING_PDF_STAGES : upload.isAudio ? PENDING_AUDIO_STAGES : PENDING_FILE_STAGES;
   const safeStageIndex = Number.isFinite(stageIndex) ? Math.max(0, Math.floor(stageIndex)) : 0;
   const stage = stages[Math.min(safeStageIndex, Math.max(0, stages.length - 1))];
   const stageLabel = stage?.label || DEFAULT_PENDING_STAGE.label;
@@ -1194,6 +1243,7 @@ function AgentView({
     `Files in scope: kiosk_apps/${slug}/app.json, kiosk_apps/${slug}/.env, gui/pages/${slug}.py`,
     `Read kiosk_apps/CLAUDE.md for the full development guide. Read the app files before making changes.`,
     `A Siemens PLC knowledgebase is available at ../pi-web/knowledgebase/ with extracted communication references for LOGO! 8, S7-1200, S7-1500, S7-200, S7-300, and S7-400. Start with plc_reference_index.md for an overview, then read the relevant *_communication_reference.md file. Use this when you need Modbus register mappings, protocol details, connection parameters, or I/O addressing for Siemens PLCs.]`,
+    `[Tooling note: a custom tool named "web_search" is available for live web lookup through Brave Search. Use it when you need current external documentation or recent information not present in the local repo.]`,
     ``,
   ].join("\n");
 
@@ -1222,8 +1272,11 @@ function AgentView({
               `Do not assume the document text is already in context.]`,
             ].join("\n");
           }
-          if (f.extractedTextPath) desc += ` — PDF text extracted (${f.pages} pages) to ${f.extractedTextPath}. Read that file for the content.`;
-          else if (f.extractionError) desc += ` — PDF text extraction failed: ${f.extractionError}`;
+          if (f.transcriptSource && f.extractedTextPath) {
+            desc += ` — Audio transcript generated by ${f.transcriptSource}${f.transcriptionModel ? ` (${f.transcriptionModel})` : ""} at ${f.extractedTextPath}. Read that file for the content.`;
+          }
+          else if (f.extractedTextPath) desc += ` — PDF text extracted (${f.pages} pages) to ${f.extractedTextPath}. Read that file for the content.`;
+          else if (f.extractionError) desc += ` — Attachment processing failed: ${f.extractionError}`;
           return desc + "]";
         })
         .join("\n");
@@ -1262,7 +1315,7 @@ function AgentView({
             const event = JSON.parse(line.slice(6));
             if (event.type === "delta") { accumulated += event.text; setStreamingText(accumulated); }
             else if (event.type === "tool_start") {
-              const label = `${event.tool}${event.args?.command ? `: ${event.args.command.slice(0, 60)}` : ""}`;
+              const label = formatToolLabel(event.tool, event.args);
               tools.push(label); setActiveTools([...tools]);
             }
             else if (event.type === "tool_end") setActiveTools([]);
@@ -1305,6 +1358,7 @@ function AgentView({
       size: file.size,
       startedAt: Date.now(),
       isPdf: /\.pdf$/i.test(file.name),
+      isAudio: isAudioAttachment(file.name),
     }));
     setPendingUploads((prev) => [...prev, ...pending]);
 
@@ -1391,6 +1445,8 @@ function AgentView({
     if (diff < 604800000) return d.toLocaleDateString([], { weekday: "short" });
     return d.toLocaleDateString([], { month: "short", day: "numeric" });
   };
+
+  const activeActivity = activeTools.length > 0 ? describeToolActivity(activeTools[activeTools.length - 1]) : null;
 
   return (
     <div className="flex h-full">
@@ -1615,11 +1671,28 @@ function AgentView({
 
               {sending && !streamingText && (
                 <div className="flex justify-start px-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="loading-dot text-sm text-muted-foreground">*</span>
-                    <span className="loading-dot text-sm text-muted-foreground">*</span>
-                    <span className="loading-dot text-sm text-muted-foreground">*</span>
-                  </div>
+                  {activeActivity ? (
+                    <div className="max-w-[78%] max-md:max-w-[92%] rounded-2xl rounded-bl-sm border border-border/70 bg-card/82 px-3 py-2 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+                          {activeActivity.icon === "search" ? <Search className="size-3.5" /> : <Loader2 className="size-3.5 animate-spin" />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-primary/80">
+                            <Loader2 className="size-3 animate-spin" />
+                            <span>{activeActivity.title}</span>
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground">{activeActivity.detail}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <span className="loading-dot text-sm text-muted-foreground">*</span>
+                      <span className="loading-dot text-sm text-muted-foreground">*</span>
+                      <span className="loading-dot text-sm text-muted-foreground">*</span>
+                    </div>
+                  )}
                 </div>
               )}
 
