@@ -1,6 +1,9 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import multer from "multer";
+// @ts-ignore – pdfjs-dist legacy build has no TS declarations
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { spawn, execSync } from "child_process";
 import path from "path";
 import fs from "fs";
@@ -31,6 +34,23 @@ const DEFAULT_FERALBOARD_PATH = path.join(MONOREPO_ROOT, "apps", "workbench");
 const FERALBOARD_PATH = process.env.FERALBOARD_PATH || DEFAULT_FERALBOARD_PATH;
 const KIOSK_APPS_DIR = path.join(FERALBOARD_PATH, "kiosk_apps");
 const GUI_PAGES_DIR = path.join(FERALBOARD_PATH, "gui/pages");
+
+// ── File Upload ─────────────────────────────────────────────────
+const UPLOADS_DIR = path.join(PI_WEB_ROOT, "uploads");
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+    filename: (_req, file, cb) => {
+      const unique = `${Date.now()}-${Math.round(Math.random() * 1e4)}`;
+      const ext = path.extname(file.originalname);
+      const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, "_");
+      cb(null, `${base}-${unique}${ext}`);
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+});
 
 // ── In-Process SDK Session Management ───────────────────────────
 
@@ -507,6 +527,64 @@ app.get("/api/files/read", (req, res) => {
     const content = fs.readFileSync(resolved, "utf-8");
     res.json({ path: resolved, relativePath: path.relative(FERALBOARD_PATH, resolved), content });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── File Upload ─────────────────────────────────────────────────
+
+app.post("/api/upload", upload.single("file"), async (req, res) => {
+  if (!req.file) { res.status(400).json({ error: "No file provided" }); return; }
+  const { originalname, filename, size } = req.file;
+  const filePath = path.join(UPLOADS_DIR, filename);
+
+  const result: Record<string, any> = { originalName: originalname, filename, size, path: filePath };
+
+  // Auto-extract text from PDFs
+  if (/\.pdf$/i.test(originalname)) {
+    try {
+      const data = new Uint8Array(fs.readFileSync(filePath));
+      const doc = await getDocument({ data, useSystemFonts: true }).promise;
+      const chunks: string[] = [];
+      for (let i = 1; i <= doc.numPages; i++) {
+        const page = await doc.getPage(i);
+        const content = await page.getTextContent();
+        const pageText = (content.items as any[])
+          .filter((item) => "str" in item)
+          .map((item) => item.str)
+          .join(" ");
+        if (pageText.trim()) chunks.push(pageText);
+      }
+      const textFilename = filename.replace(/\.pdf$/i, ".txt");
+      const textPath = path.join(UPLOADS_DIR, textFilename);
+      fs.writeFileSync(textPath, chunks.join("\n\n"), "utf-8");
+      result.extractedText = textFilename;
+      result.extractedTextPath = textPath;
+      result.pages = doc.numPages;
+    } catch (err: any) {
+      result.extractionError = err.message;
+    }
+  }
+
+  res.json(result);
+});
+
+app.get("/api/uploads", (_req, res) => {
+  try {
+    const files = fs.readdirSync(UPLOADS_DIR)
+      .filter((f) => !f.startsWith("."))
+      .map((f) => {
+        const stat = fs.statSync(path.join(UPLOADS_DIR, f));
+        return { filename: f, size: stat.size, createdAt: stat.birthtime };
+      })
+      .sort((a, b) => +b.createdAt - +a.createdAt);
+    res.json(files);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete("/api/uploads/:filename", (req, res) => {
+  const filePath = path.join(UPLOADS_DIR, path.basename(req.params.filename));
+  if (!fs.existsSync(filePath)) { res.status(404).json({ error: "Not found" }); return; }
+  fs.unlinkSync(filePath);
+  res.json({ ok: true });
 });
 
 // ── System Actions ──────────────────────────────────────────────
