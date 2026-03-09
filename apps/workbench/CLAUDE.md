@@ -72,7 +72,7 @@ python3 tests/test_inputs_e2e.py
 | Page | File | Description |
 |------|------|-------------|
 | Kiosk | `gui/pages/kiosk.py` | Lock screen showing app content, long-press title to unlock |
-| PIN | `gui/pages/pin.py` | PIN entry keypad (9127) to access admin area |
+| PIN | `gui/pages/pin.py` | PIN entry keypad (1234) to access admin area |
 | Home | `gui/pages/home.py` | Main screen with large nav buttons, connection controls, board status |
 | Outputs | `gui/pages/outputs.py` | 12 digital output toggles (DO0–DO11) with echo feedback |
 | Inputs | `gui/pages/inputs.py` | 8 digital input indicators (DI0–DI7) |
@@ -150,7 +150,7 @@ echo "click 355 361" | socat - UNIX-CONNECT:/tmp/feralboard-workbench.sock
 
 ## Kiosk Mode
 
-The app boots into a locked kiosk screen. Long-press (2s) on the title to open the PIN page. Enter PIN `9127` to access the admin area (home page). The Lock button on the home page returns to kiosk mode.
+The app boots into a locked kiosk screen. Long-press (2s) on the title to open the PIN page. Enter PIN `1234` to access the admin area (home page). The Lock button on the home page returns to kiosk mode.
 
 ### Kiosk App Manifest
 

@@ -14,6 +14,7 @@ import {
   FileText, Zap, ChevronRight, FolderOpen, File, ChevronDown,
   PanelRightOpen, PanelRightClose, GripVertical, Moon, Sun, Languages,
   Paperclip,
+  Upload, RotateCcw, RotateCw,
 } from "lucide-react";
 
 const mdComponents = { code: MarkdownCode };
@@ -56,6 +57,22 @@ interface SessionInfo {
   filePath: string;
   cwd: string;
   isCoding: boolean;
+}
+
+type SplashMode = "unchanged" | "preset" | "custom";
+type BackgroundMode = "default" | "custom" | "path";
+
+interface DisplaySettingsInfo {
+  rotation: number;
+  backgroundPath: string;
+  splashPath: string;
+  horizontalSplashPath: string;
+  splashPreset: string | null;
+  supportedSplashClients: string[];
+  customAssets: {
+    splash: string;
+    background: string;
+  };
 }
 
 // ── Router ──────────────────────────────────────────────────────
@@ -167,6 +184,105 @@ function LanguageToggleButton({
   );
 }
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("Failed to read file"));
+    };
+    reader.onerror = () => reject(reader.error || new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function imageUrlToDataUrl(url: string): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to load image");
+  const blob = await res.blob();
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("Failed to read image"));
+    };
+    reader.onerror = () => reject(reader.error || new Error("Failed to read image"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function displayImageUrl(filePath: string | null | undefined) {
+  if (!filePath) return "";
+  return `/api/system/display-image?path=${encodeURIComponent(filePath)}`;
+}
+
+function PreviewCard({
+  label,
+  sourceLabel,
+  src,
+  rotation,
+  frame,
+  onRotateLeft,
+  onRotateRight,
+  onUpload,
+}: {
+  label: string;
+  sourceLabel: string;
+  src?: string | null;
+  rotation: number;
+  frame: "portrait" | "landscape";
+  onRotateLeft: () => void;
+  onRotateRight: () => void;
+  onUpload: () => void;
+}) {
+  const frameClasses = frame === "portrait" ? "aspect-[3/5]" : "aspect-[16/9]";
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="px-3 py-2 border-b border-border flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium">{label}</div>
+          <div className="text-[11px] text-muted-foreground truncate">{sourceLabel}</div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button variant="ghost" size="icon" className="size-7" onClick={onRotateLeft} title="Rotate left">
+            <RotateCcw className="size-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="size-7" onClick={onRotateRight} title="Rotate right">
+            <RotateCw className="size-3.5" />
+          </Button>
+        </div>
+      </div>
+      <div className="p-3">
+        <div className={cn("relative rounded-lg bg-surface border border-border overflow-hidden flex items-center justify-center", frameClasses)}>
+          {src ? (
+            <div className="w-full h-full flex items-center justify-center p-3">
+              <img
+                src={src}
+                alt={label}
+                className="max-w-full max-h-full object-contain rounded-md shadow-sm transition-transform duration-200"
+                style={{ transform: `rotate(${rotation}deg)` }}
+              />
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground/60 text-center px-4">
+              Preview unavailable
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={onUpload}
+            className="absolute inset-0 m-auto size-14 rounded-full border border-white/30 bg-black/45 text-white backdrop-blur-sm flex items-center justify-center cursor-pointer hover:bg-black/60 transition-colors"
+            title={`Upload ${label}`}
+          >
+            <Upload className="size-5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── App ─────────────────────────────────────────────────────────
 
 export default function App() {
@@ -192,10 +308,14 @@ export default function App() {
     try { setApps(await (await fetch("/api/apps")).json()); } catch {}
   };
 
-  const restartGui = async () => {
+  const restartGui = async (slug?: string) => {
     setLoading(true);
     try {
-      await fetch("/api/system/restart-gui", { method: "POST" });
+      await fetch("/api/system/restart-gui", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(slug ? { slug } : {}),
+      });
       setTimeout(async () => { await takeScreenshot(); setLoading(false); }, 3000);
     } catch { setLoading(false); }
   };
@@ -217,6 +337,11 @@ export default function App() {
   const getAppName = (slug: string) => apps.find((a) => a.slug === slug)?.name || slug;
   const toggleTheme = () => setTheme((current) => current === "dark" ? "light" : "dark");
   const toggleLanguage = () => setLanguage((current) => current === "en" ? "pt" : "en");
+  const rebootSystem = async () => {
+    try {
+      await fetch("/api/system/reboot", { method: "POST" });
+    } catch {}
+  };
   const t = (key: string, vars?: Record<string, string | number>) => translate(language, key, vars);
 
   return (
@@ -230,13 +355,14 @@ export default function App() {
           t={t}
           apps={apps} loading={loading}
           screenshotUrl={screenshotUrl} screenshotKey={screenshotKey}
-          onRefresh={fetchApps} onRestartGui={restartGui} onScreenshot={takeScreenshot}
+          onRefresh={fetchApps} onRestartGui={() => restartGui()} onScreenshot={takeScreenshot}
           onOpenAgent={(slug) => navigate({ page: "agent", slug })}
           onOpenConfig={(slug) => navigate({ page: "config", slug })}
           onOpenEnv={(slug) => navigate({ page: "env", slug })}
           onCreate={() => navigate({ page: "create" })}
           onDelete={deleteApp}
           onOpenVnc={() => navigate({ page: "vnc" })}
+          onReboot={rebootSystem}
         />
       )}
       {route.page === "agent" && (
@@ -249,7 +375,7 @@ export default function App() {
           slug={route.slug}
           appName={getAppName(route.slug)}
           onBack={() => { navigate({ page: "dashboard" }); fetchApps(); }}
-          onRestartGui={restartGui}
+          onRestartGui={() => restartGui(route.slug)}
           onScreenshot={takeScreenshot}
           screenshotUrl={screenshotUrl}
           screenshotKey={screenshotKey}
@@ -289,7 +415,7 @@ function Dashboard({
   t,
   apps, loading, screenshotUrl, screenshotKey,
   onRefresh, onRestartGui, onScreenshot,
-  onOpenAgent, onOpenConfig, onOpenEnv, onCreate, onDelete, onOpenVnc,
+  onOpenAgent, onOpenConfig, onOpenEnv, onCreate, onDelete, onOpenVnc, onReboot,
 }: {
   language: Language;
   theme: Theme;
@@ -309,7 +435,205 @@ function Dashboard({
   onCreate: () => void;
   onDelete: (slug: string) => void;
   onOpenVnc: () => void;
+  onReboot: () => Promise<void>;
 }) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsError, setSettingsError] = useState("");
+  const [settingsSuccess, setSettingsSuccess] = useState("");
+  const [settingsInfo, setSettingsInfo] = useState<DisplaySettingsInfo | null>(null);
+  const [rotation, setRotation] = useState(0);
+  const [splashMode, setSplashMode] = useState<SplashMode>("unchanged");
+  const [splashClient, setSplashClient] = useState("mercadona");
+  const [backgroundMode, setBackgroundMode] = useState<BackgroundMode>("default");
+  const [backgroundPath, setBackgroundPath] = useState("");
+  const [customSplashFile, setCustomSplashFile] = useState<File | null>(null);
+  const [customHorizontalFile, setCustomHorizontalFile] = useState<File | null>(null);
+  const [customWallpaperFile, setCustomWallpaperFile] = useState<File | null>(null);
+  const [customSplashPreviewUrl, setCustomSplashPreviewUrl] = useState<string | null>(null);
+  const [customHorizontalPreviewUrl, setCustomHorizontalPreviewUrl] = useState<string | null>(null);
+  const [customWallpaperPreviewUrl, setCustomWallpaperPreviewUrl] = useState<string | null>(null);
+  const [bootPreviewRotation, setBootPreviewRotation] = useState(0);
+  const [horizontalPreviewRotation, setHorizontalPreviewRotation] = useState(0);
+  const [wallpaperPreviewRotation, setWallpaperPreviewRotation] = useState(0);
+  const bootUploadRef = useRef<HTMLInputElement>(null);
+  const horizontalUploadRef = useRef<HTMLInputElement>(null);
+  const wallpaperUploadRef = useRef<HTMLInputElement>(null);
+
+  const loadDisplaySettings = useCallback(async () => {
+    setSettingsLoading(true);
+    setSettingsError("");
+    try {
+      const res = await fetch("/api/system/display-settings");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load settings");
+      setSettingsInfo(data);
+      setRotation(data.rotation);
+      setBackgroundPath(data.backgroundPath);
+      setSplashClient(data.supportedSplashClients[0] || "mercadona");
+      setSplashMode("unchanged");
+      setBackgroundMode("default");
+      setCustomSplashFile(null);
+      setCustomHorizontalFile(null);
+      setCustomWallpaperFile(null);
+      setCustomSplashPreviewUrl(null);
+      setCustomHorizontalPreviewUrl(null);
+      setCustomWallpaperPreviewUrl(null);
+      setBootPreviewRotation(data.rotation);
+      setHorizontalPreviewRotation(data.rotation);
+      setWallpaperPreviewRotation(data.rotation);
+    } catch (err: any) {
+      setSettingsError(err.message || "Failed to load settings");
+    } finally {
+      setSettingsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!customSplashFile) {
+      setCustomSplashPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(customSplashFile);
+    setCustomSplashPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [customSplashFile]);
+
+  useEffect(() => {
+    if (!customHorizontalFile) {
+      setCustomHorizontalPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(customHorizontalFile);
+    setCustomHorizontalPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [customHorizontalFile]);
+
+  useEffect(() => {
+    if (!customWallpaperFile) {
+      setCustomWallpaperPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(customWallpaperFile);
+    setCustomWallpaperPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [customWallpaperFile]);
+
+  const openSettings = async () => {
+    setSettingsOpen(true);
+    setSettingsSuccess("");
+    await loadDisplaySettings();
+  };
+
+  const handleBootSplashUpload = (file: File | null) => {
+    setCustomSplashFile(file);
+    if (file) {
+      setSplashMode("custom");
+    } else if (!customHorizontalFile) {
+      setSplashMode("unchanged");
+    }
+  };
+
+  const handleHorizontalUpload = (file: File | null) => {
+    setCustomHorizontalFile(file);
+    if (file) {
+      setSplashMode("custom");
+    } else if (!customSplashFile) {
+      setSplashMode("unchanged");
+    }
+  };
+
+  const handleWallpaperUpload = (file: File | null) => {
+    setCustomWallpaperFile(file);
+    if (file) {
+      setBackgroundMode("custom");
+    } else {
+      setBackgroundMode("default");
+    }
+  };
+
+  const saveDisplaySettings = async () => {
+    setSettingsSaving(true);
+    setSettingsError("");
+    setSettingsSuccess("");
+    try {
+      const body: Record<string, unknown> = {
+        rotation,
+        splashMode,
+        splashClient,
+        backgroundMode,
+        backgroundPath,
+      };
+
+      if (splashMode === "custom") {
+        if (customSplashFile) {
+          body.customSplashDataUrl = await fileToDataUrl(customSplashFile);
+        } else if (settingsInfo?.splashPath) {
+          body.customSplashDataUrl = await imageUrlToDataUrl(displayImageUrl(settingsInfo.splashPath));
+        } else {
+          throw new Error("Select a splash image for custom mode");
+        }
+      }
+
+      if (backgroundMode === "custom") {
+        if (!customWallpaperFile) throw new Error("Select a wallpaper image");
+        body.customBackgroundDataUrl = await fileToDataUrl(customWallpaperFile);
+      } else if (splashMode === "custom" && customHorizontalFile) {
+        body.customBackgroundDataUrl = await fileToDataUrl(customHorizontalFile);
+      }
+
+      const res = await fetch("/api/system/display-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save display settings");
+
+      setSettingsSuccess("Display settings saved.");
+      await loadDisplaySettings();
+
+      if (data.rebootRecommended && window.confirm("Display settings saved. Reboot now?")) {
+        await onReboot();
+      } else {
+        setSettingsOpen(false);
+      }
+    } catch (err: any) {
+      setSettingsError(err.message || "Failed to save display settings");
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const presetSplashBase = splashMode === "preset"
+    ? `/home/pi/splash-screens/${splashClient}-images`
+    : null;
+  const previewBootSplashSrc = splashMode === "custom"
+    ? customSplashPreviewUrl
+    : splashMode === "preset"
+      ? displayImageUrl(`${presetSplashBase}/splash.png`)
+      : displayImageUrl(settingsInfo?.splashPath);
+  const previewHorizontalSplashSrc = splashMode === "custom"
+    ? (customHorizontalPreviewUrl || customSplashPreviewUrl)
+    : splashMode === "preset"
+      ? displayImageUrl(`${presetSplashBase}/splash-horizontal.png`)
+      : displayImageUrl(settingsInfo?.horizontalSplashPath);
+  const previewWallpaperSrc = backgroundMode === "custom"
+    ? customWallpaperPreviewUrl
+    : backgroundMode === "path"
+      ? displayImageUrl(backgroundPath)
+      : splashMode === "custom"
+        ? (customHorizontalPreviewUrl || customSplashPreviewUrl)
+        : displayImageUrl(settingsInfo?.backgroundPath || settingsInfo?.horizontalSplashPath);
+  const previewWallpaperSourceLabel = backgroundMode === "custom"
+    ? (customWallpaperFile?.name || "Custom background")
+    : backgroundMode === "path"
+      ? backgroundPath || "Select a wallpaper path"
+      : (settingsInfo?.backgroundPath || settingsInfo?.horizontalSplashPath || "/boot/firmware/splash-horizontal.png");
+  const rotateLeft = (value: number) => (value + 270) % 360;
+  const rotateRight = (value: number) => (value + 90) % 360;
+
   return (
     <>
       {/* Header */}
@@ -416,6 +740,156 @@ function Dashboard({
           )}
         </div>
       </div>
+
+      <div className="fixed right-5 bottom-5 z-20">
+        <Button
+          onClick={openSettings}
+          className="rounded-full h-14 px-5 shadow-[0_18px_40px_rgba(124,58,237,0.28)] border border-primary/30"
+          title="Display settings"
+        >
+          <Settings className="size-4" />
+          <span className="ml-2 font-medium">Display Settings</span>
+        </Button>
+      </div>
+
+      {settingsOpen && (
+        <div className="fixed inset-0 z-30 bg-black/45 backdrop-blur-[2px] flex items-end justify-end p-4 max-md:p-0">
+          <div className="w-full max-w-xl max-md:max-w-none max-md:h-full bg-background border border-border rounded-2xl max-md:rounded-none shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
+              <div className="size-10 rounded-2xl bg-primary/12 border border-primary/20 flex items-center justify-center">
+                <Settings className="size-4 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <div className="font-semibold">Display Settings</div>
+                <div className="text-xs text-muted-foreground">Rotation, splash screen, wallpaper, reboot.</div>
+              </div>
+              <div className="flex-1" />
+              <Button variant="ghost" size="icon" className="size-8" onClick={() => setSettingsOpen(false)}>
+                <X className="size-4" />
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+              {settingsError && (
+                <div className="text-sm text-destructive p-3 rounded-xl bg-tint-accent border border-destructive/20">
+                  {settingsError}
+                </div>
+              )}
+              {settingsSuccess && (
+                <div className="text-sm text-success p-3 rounded-xl bg-success-light border border-success/20">
+                  {settingsSuccess}
+                </div>
+              )}
+
+              {settingsLoading ? (
+                <div className="py-10 flex items-center justify-center text-sm text-muted-foreground gap-2">
+                  <Loader2 className="size-4 animate-spin" />
+                  Loading display settings...
+                </div>
+              ) : (
+                <>
+                  <section className="space-y-3">
+                    <div>
+                      <div className="font-mono text-[10px] uppercase tracking-[3px] text-primary">Rotation</div>
+                      <div className="text-xs text-muted-foreground mt-1">Apply rotation to the system. Each preview can also be rotated independently for simulation.</div>
+                    </div>
+                    <select
+                      value={rotation}
+                      onChange={(e) => setRotation(Number(e.target.value))}
+                      className="w-full h-11 rounded-xl border border-input bg-card px-3 text-sm"
+                    >
+                      <option value={0}>0°</option>
+                      <option value={90}>90°</option>
+                      <option value={180}>180°</option>
+                      <option value={270}>270°</option>
+                    </select>
+                  </section>
+
+                  <section className="space-y-3">
+                    <div>
+                      <div className="font-mono text-[10px] uppercase tracking-[3px] text-primary">Orientation Preview</div>
+                      <div className="text-xs text-muted-foreground mt-1">Upload directly on each preview card. The older splash and wallpaper options are hidden for now.</div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <input
+                        ref={bootUploadRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleBootSplashUpload(e.target.files?.[0] || null)}
+                      />
+                      <input
+                        ref={horizontalUploadRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleHorizontalUpload(e.target.files?.[0] || null)}
+                      />
+                      <input
+                        ref={wallpaperUploadRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleWallpaperUpload(e.target.files?.[0] || null)}
+                      />
+                      <PreviewCard
+                        label="Boot splash image"
+                        sourceLabel={
+                          splashMode === "custom"
+                            ? (customSplashFile?.name || "Upload a splash image")
+                            : splashMode === "preset"
+                              ? `${presetSplashBase}/splash.png`
+                              : (settingsInfo?.splashPath || "/boot/firmware/splash.png")
+                        }
+                        src={previewBootSplashSrc}
+                        rotation={bootPreviewRotation}
+                        frame="portrait"
+                        onRotateLeft={() => setBootPreviewRotation((value) => rotateLeft(value))}
+                        onRotateRight={() => setBootPreviewRotation((value) => rotateRight(value))}
+                        onUpload={() => bootUploadRef.current?.click()}
+                      />
+                      <PreviewCard
+                        label="Horizontal splash / wallpaper override"
+                        sourceLabel={
+                          splashMode === "custom"
+                            ? (customHorizontalFile?.name || customSplashFile?.name || "Uses custom splash image")
+                            : splashMode === "preset"
+                              ? `${presetSplashBase}/splash-horizontal.png`
+                              : (settingsInfo?.horizontalSplashPath || "/boot/firmware/splash-horizontal.png")
+                        }
+                        src={previewHorizontalSplashSrc}
+                        rotation={horizontalPreviewRotation}
+                        frame="landscape"
+                        onRotateLeft={() => setHorizontalPreviewRotation((value) => rotateLeft(value))}
+                        onRotateRight={() => setHorizontalPreviewRotation((value) => rotateRight(value))}
+                        onUpload={() => horizontalUploadRef.current?.click()}
+                      />
+                      <PreviewCard
+                        label="Wallpaper"
+                        sourceLabel={previewWallpaperSourceLabel}
+                        src={previewWallpaperSrc}
+                        rotation={wallpaperPreviewRotation}
+                        frame="landscape"
+                        onRotateLeft={() => setWallpaperPreviewRotation((value) => rotateLeft(value))}
+                        onRotateRight={() => setWallpaperPreviewRotation((value) => rotateRight(value))}
+                        onUpload={() => wallpaperUploadRef.current?.click()}
+                      />
+                    </div>
+                  </section>
+                </>
+              )}
+            </div>
+
+            <div className="border-t border-border px-5 py-4 flex items-center gap-3 justify-end">
+              <Button variant="ghost" onClick={() => setSettingsOpen(false)}>Close</Button>
+              <Button onClick={saveDisplaySettings} disabled={settingsLoading || settingsSaving}>
+                {settingsSaving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                Apply Settings
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

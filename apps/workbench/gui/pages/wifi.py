@@ -1,6 +1,7 @@
 """WiFi management page: scan networks, view status, connect."""
 
 import subprocess
+import time
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -11,7 +12,11 @@ def _run_cmd(cmd):
     """Run a shell command and return stdout."""
     try:
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
-        return result.stdout.strip()
+        output = result.stdout.strip()
+        if result.returncode != 0:
+            err = result.stderr.strip()
+            return output or err or f"Command failed with exit code {result.returncode}"
+        return output
     except Exception as e:
         return f"Error: {e}"
 
@@ -86,41 +91,23 @@ class WifiPage(Gtk.Box):
         sw.add(self.listbox)
         self.pack_start(sw, True, True, 0)
 
-        # Password dialog area (hidden by default)
-        self.password_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        self.password_box.set_margin_start(16)
-        self.password_box.set_margin_end(16)
-        self.password_box.set_margin_top(8)
-        self.password_box.set_margin_bottom(12)
-        self.password_box.set_no_show_all(True)
-
-        self.connect_label = Gtk.Label()
-        self.connect_label.set_halign(Gtk.Align.START)
-        self.password_box.pack_start(self.connect_label, False, False, 0)
-
-        self.password_entry = Gtk.Entry()
-        self.password_entry.set_placeholder_text("Enter password...")
-        self.password_entry.set_visibility(False)
-        self.password_box.pack_start(self.password_entry, False, False, 0)
-
-        pw_btn_box = Gtk.Box(spacing=8)
-        cancel_btn = Gtk.Button(label="Cancel")
-        cancel_btn.connect("clicked", lambda w: self._hide_password_box())
-        connect_btn = Gtk.Button(label="Connect")
-        connect_btn.get_style_context().add_class("suggested-action")
-        connect_btn.connect("clicked", lambda w: self._do_connect())
-        pw_btn_box.pack_start(cancel_btn, True, True, 0)
-        pw_btn_box.pack_start(connect_btn, True, True, 0)
-        self.password_box.pack_start(pw_btn_box, False, False, 0)
-
-        self.pack_start(self.password_box, False, False, 0)
-
     def _go_back(self, widget):
         if self._on_back:
             self._on_back()
 
     def refresh(self):
         """Fetch current connection info and available networks."""
+        # Force a fresh scan. NetworkManager requires elevated privileges here
+        # on this Pi, so fall back through the allowed variants.
+        for cmd in (
+            "sudo nmcli dev wifi rescan ifname wlan0",
+            "nmcli dev wifi rescan ifname wlan0",
+            "sudo nmcli dev wifi rescan",
+            "nmcli dev wifi rescan",
+        ):
+            _run_cmd(cmd)
+        time.sleep(1.0)
+
         # Current connection
         active = _run_cmd("nmcli -t -f NAME,DEVICE con show --active | grep wlan0")
         if active:
@@ -146,20 +133,22 @@ class WifiPage(Gtk.Box):
         for child in self.listbox.get_children():
             self.listbox.remove(child)
 
-        networks_raw = _run_cmd("nmcli -t -f SSID,SIGNAL,SECURITY,IN-USE dev wifi list")
+        networks_raw = _run_cmd(
+            "nmcli -t --escape no -f IN-USE,SSID,SIGNAL,SECURITY dev wifi list ifname wlan0"
+        )
         seen = set()
         for line in networks_raw.splitlines():
-            parts = line.split(":")
+            parts = line.split(":", 3)
             if len(parts) < 4:
                 continue
-            ssid = parts[0].strip()
+            in_use = parts[0].strip() == "*"
+            ssid = parts[1].strip()
             if not ssid or ssid in seen:
                 continue
             seen.add(ssid)
 
-            signal = parts[1].strip()
-            security = parts[2].strip()
-            in_use = parts[3].strip() == "*"
+            signal = parts[2].strip()
+            security = parts[3].strip()
 
             row = Gtk.ListBoxRow()
             row.get_style_context().add_class("wifi-row")
@@ -218,38 +207,65 @@ class WifiPage(Gtk.Box):
 
     def _on_network_connect_clicked(self, widget, ssid, security):
         """User clicked Connect on a network."""
-        self.selected_ssid = ssid
         if security and security != "--":
-            self.connect_label.set_markup(
-                f'<span size="12000">Connect to '
-                f'<b>{GLib.markup_escape_text(ssid)}</b></span>'
-            )
-            self.password_entry.set_text("")
-            self.password_box.set_visible(True)
-            self.password_box.show_all()
-            self.password_entry.grab_focus()
+            self._show_password_dialog(ssid)
         else:
             self._do_connect_open(ssid)
 
-    def _hide_password_box(self):
-        self.password_box.set_visible(False)
-        self.selected_ssid = None
+    def _show_password_dialog(self, ssid):
+        """Prompt for a WiFi password in a modal dialog."""
+        dialog = Gtk.Dialog(
+            title=f"Connect to {ssid}",
+            transient_for=self.get_toplevel(),
+            modal=True,
+        )
+        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        connect_btn = dialog.add_button("Connect", Gtk.ResponseType.OK)
+        connect_btn.get_style_context().add_class("suggested-action")
 
-    def _do_connect(self):
+        content = dialog.get_content_area()
+        content.set_spacing(8)
+        content.set_margin_top(12)
+        content.set_margin_bottom(12)
+        content.set_margin_start(12)
+        content.set_margin_end(12)
+
+        label = Gtk.Label()
+        label.set_halign(Gtk.Align.START)
+        label.set_markup(
+            f'<span size="12000">Enter password for '
+            f'<b>{GLib.markup_escape_text(ssid)}</b></span>'
+        )
+        content.pack_start(label, False, False, 0)
+
+        password_entry = Gtk.Entry()
+        password_entry.set_placeholder_text("Enter password...")
+        password_entry.set_visibility(False)
+        password_entry.set_activates_default(True)
+        content.pack_start(password_entry, False, False, 0)
+
+        dialog.set_default_response(Gtk.ResponseType.OK)
+        dialog.show_all()
+        password_entry.grab_focus()
+
+        response = dialog.run()
+        password = password_entry.get_text()
+        dialog.destroy()
+
+        if response == Gtk.ResponseType.OK:
+            self._do_connect(ssid, password)
+
+    def _do_connect(self, ssid, password):
         """Connect to the selected secured network."""
-        ssid = self.selected_ssid
-        password = self.password_entry.get_text()
-        self._hide_password_box()
-        # Actually connect
         result = _run_cmd(
-            f"nmcli dev wifi connect '{ssid}' password '{password}'"
+            f"sudo nmcli dev wifi connect '{ssid}' password '{password}' ifname wlan0"
         )
         self._show_result(ssid, result)
         self.refresh()
 
     def _do_connect_open(self, ssid):
         """Connect to an open network."""
-        result = _run_cmd(f"nmcli dev wifi connect '{ssid}'")
+        result = _run_cmd(f"sudo nmcli dev wifi connect '{ssid}' ifname wlan0")
         self._show_result(ssid, result)
         self.refresh()
 

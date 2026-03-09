@@ -4,7 +4,7 @@ import cors from "cors";
 import multer from "multer";
 // @ts-ignore – pdfjs-dist legacy build has no TS declarations
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { spawn, execSync } from "child_process";
+import { spawn, execSync, spawnSync } from "child_process";
 import path from "path";
 import fs from "fs";
 import net from "net";
@@ -22,13 +22,21 @@ import { Type } from "@sinclair/typebox";
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "20mb" }));
 
 const PORT = 3001;
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PI_WEB_ROOT = path.resolve(SERVER_DIR, "..");
 const MONOREPO_ROOT = path.resolve(PI_WEB_ROOT, "..", "..");
 const DEFAULT_FERALBOARD_PATH = path.join(MONOREPO_ROOT, "apps", "workbench");
+const DISPLAY_ASSETS_DIR = path.join(PI_WEB_ROOT, ".pi", "display-assets");
+const DISPLAY_SCRIPT_PATH = path.join(PI_WEB_ROOT, "server", "scripts", "setup_display.sh");
+const SWAY_CONFIG_PATH = "/etc/sway/config.d/99-custom-config";
+const BOOT_FW_DIR = "/boot/firmware";
+const SPLASH_HORIZONTAL_PATH = path.join(BOOT_FW_DIR, "splash-horizontal.png");
+const SPLASH_PNG_PATH = path.join(BOOT_FW_DIR, "splash.png");
+const SPLASH_PRESETS_DIR = "/home/pi/splash-screens";
+const SUPPORTED_SPLASH_CLIENTS = ["mercadona", "ramalhos"] as const;
 
 // ── FeralBoard Configuration ────────────────────────────────────
 const FERALBOARD_PATH = process.env.FERALBOARD_PATH || DEFAULT_FERALBOARD_PATH;
@@ -255,6 +263,124 @@ function parseEnvFile(filePath: string): Record<string, string> {
 function writeEnvFile(filePath: string, vars: Record<string, string>) {
   const lines = Object.entries(vars).map(([k, v]) => `${k}=${v}`);
   fs.writeFileSync(filePath, lines.join("\n") + "\n");
+}
+
+function ensureDir(dirPath: string) {
+  fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function readSwaySetting(pattern: RegExp): string | null {
+  if (!fs.existsSync(SWAY_CONFIG_PATH)) return null;
+  const config = fs.readFileSync(SWAY_CONFIG_PATH, "utf-8");
+  const match = config.match(pattern);
+  return match?.[1] ?? null;
+}
+
+function getDisplaySettings() {
+  const rotationValue = readSwaySetting(/^output HDMI-A-1 transform (.+)$/m);
+  const backgroundPath = readSwaySetting(/^output \* bg (.+) fill$/m);
+
+  return {
+    rotation: ["0", "90", "180", "270"].includes(rotationValue || "") ? Number(rotationValue) : 0,
+    backgroundPath: backgroundPath || SPLASH_HORIZONTAL_PATH,
+    splashPath: SPLASH_PNG_PATH,
+    horizontalSplashPath: SPLASH_HORIZONTAL_PATH,
+    splashPreset: null as string | null,
+    supportedSplashClients: [...SUPPORTED_SPLASH_CLIENTS],
+    customAssets: {
+      splash: path.join(DISPLAY_ASSETS_DIR, "splash.png"),
+      background: path.join(DISPLAY_ASSETS_DIR, "splash-horizontal.png"),
+    },
+  };
+}
+
+function writeBase64Image(targetPath: string, dataUrl: string) {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) throw new Error(`Invalid image payload for ${path.basename(targetPath)}`);
+  ensureDir(path.dirname(targetPath));
+  fs.writeFileSync(targetPath, Buffer.from(match[2], "base64"));
+}
+
+function runPrivileged(command: string, args: string[], options?: { cwd?: string }) {
+  const finalCommand = process.getuid?.() === 0 ? command : "sudo";
+  const finalArgs = process.getuid?.() === 0 ? args : [command, ...args];
+  const result = spawnSync(finalCommand, finalArgs, {
+    cwd: options?.cwd,
+    encoding: "utf-8",
+  });
+
+  if (result.status !== 0) {
+    throw new Error(result.stderr?.trim() || result.stdout?.trim() || `${command} failed`);
+  }
+
+  return {
+    stdout: result.stdout?.trim() || "",
+    stderr: result.stderr?.trim() || "",
+  };
+}
+
+type DisplaySettingsApplyBody = {
+  rotation?: number;
+  splashMode?: "unchanged" | "preset" | "custom";
+  splashClient?: string;
+  customSplashDataUrl?: string;
+  customBackgroundDataUrl?: string;
+  backgroundMode?: "default" | "custom" | "path";
+  backgroundPath?: string;
+};
+
+function buildDisplayScriptArgs(body: DisplaySettingsApplyBody) {
+  const rotation = Number(body.rotation);
+  if (![0, 90, 180, 270].includes(rotation)) throw new Error("rotation must be 0, 90, 180, or 270");
+
+  let backgroundPath = SPLASH_HORIZONTAL_PATH;
+  let clientArg = "";
+
+  if (body.splashMode === "preset") {
+    if (!body.splashClient || !SUPPORTED_SPLASH_CLIENTS.includes(body.splashClient as any)) {
+      throw new Error(`splashClient must be one of: ${SUPPORTED_SPLASH_CLIENTS.join(", ")}`);
+    }
+    clientArg = body.splashClient;
+  }
+
+  if (body.splashMode === "custom") {
+    if (!body.customSplashDataUrl) throw new Error("customSplashDataUrl is required for custom splash mode");
+    const customSplashPath = path.join(DISPLAY_ASSETS_DIR, "splash.png");
+    writeBase64Image(customSplashPath, body.customSplashDataUrl);
+
+    if (body.customBackgroundDataUrl) {
+      const customBackgroundPath = path.join(DISPLAY_ASSETS_DIR, "splash-horizontal.png");
+      writeBase64Image(customBackgroundPath, body.customBackgroundDataUrl);
+      backgroundPath = customBackgroundPath;
+    } else {
+      const fallbackBackgroundPath = path.join(DISPLAY_ASSETS_DIR, "splash-horizontal.png");
+      writeBase64Image(fallbackBackgroundPath, body.customSplashDataUrl);
+      backgroundPath = fallbackBackgroundPath;
+    }
+
+    clientArg = "custom";
+  }
+
+  if (body.backgroundMode === "custom") {
+    if (!body.customBackgroundDataUrl) throw new Error("customBackgroundDataUrl is required for custom background mode");
+    const customBackgroundPath = path.join(DISPLAY_ASSETS_DIR, "splash-horizontal.png");
+    writeBase64Image(customBackgroundPath, body.customBackgroundDataUrl);
+    backgroundPath = customBackgroundPath;
+  } else if (body.backgroundMode === "path") {
+    if (!body.backgroundPath?.trim()) throw new Error("backgroundPath is required when backgroundMode is path");
+    backgroundPath = body.backgroundPath.trim();
+  }
+
+  const args = [DISPLAY_SCRIPT_PATH, "-r", String(rotation), "-b", backgroundPath];
+  if (clientArg) args.push("-c", clientArg);
+
+  return { rotation, backgroundPath, clientArg, args };
+}
+
+function canReadDisplayImage(targetPath: string) {
+  const resolved = path.resolve(targetPath);
+  const allowedRoots = [BOOT_FW_DIR, SPLASH_PRESETS_DIR, DISPLAY_ASSETS_DIR];
+  return allowedRoots.some((root) => resolved.startsWith(path.resolve(root) + path.sep) || resolved === path.resolve(root));
 }
 
 function generatePageBoilerplate(slug: string, name: string): string {
@@ -589,8 +715,17 @@ app.delete("/api/uploads/:filename", (req, res) => {
 
 // ── System Actions ──────────────────────────────────────────────
 
-app.post("/api/system/restart-gui", (_req, res) => {
+app.post("/api/system/restart-gui", (req, res) => {
   try {
+    const slug = typeof req.body?.slug === "string" ? req.body.slug.trim() : "";
+    if (slug) {
+      const manifestPath = path.join(KIOSK_APPS_DIR, slug, "app.json");
+      if (!fs.existsSync(manifestPath)) {
+        res.status(404).json({ error: "App not found" });
+        return;
+      }
+      fs.writeFileSync(path.join(FERALBOARD_PATH, ".default_app"), `${slug}\n`);
+    }
     // Kill existing GUI process
     try { execSync('pkill -f "python3.*gui/app.py"', { cwd: FERALBOARD_PATH, timeout: 5000 }); } catch {}
     // Wait a moment for cleanup
@@ -601,7 +736,7 @@ app.post("/api/system/restart-gui", (_req, res) => {
         stdio: "ignore",
       }).unref();
     }, 500);
-    res.json({ success: true });
+    res.json({ success: true, slug: slug || null });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -626,6 +761,60 @@ app.get("/api/system/config", (_req, res) => {
     provider: model?.provider || process.env.PI_PROVIDER || "openai",
     model: model?.id || process.env.PI_MODEL || "o3-mini",
   });
+});
+
+app.get("/api/system/display-settings", (_req, res) => {
+  try {
+    res.json(getDisplaySettings());
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/system/display-image", (req, res) => {
+  try {
+    const targetPath = String(req.query.path || "");
+    if (!targetPath) {
+      res.status(400).json({ error: "path is required" });
+      return;
+    }
+    if (!canReadDisplayImage(targetPath)) {
+      res.status(403).json({ error: "Access denied" });
+      return;
+    }
+    if (!fs.existsSync(targetPath) || fs.statSync(targetPath).isDirectory()) {
+      res.status(404).json({ error: "Image not found" });
+      return;
+    }
+    res.sendFile(path.resolve(targetPath));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/system/display-settings", (req, res) => {
+  try {
+    const scriptRun = buildDisplayScriptArgs(req.body);
+    const result = runPrivileged("bash", scriptRun.args, { cwd: PI_WEB_ROOT });
+    res.json({
+      success: true,
+      rotation: scriptRun.rotation,
+      backgroundPath: scriptRun.backgroundPath,
+      rebootRecommended: true,
+      output: result.stdout,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/system/reboot", (_req, res) => {
+  try {
+    runPrivileged("reboot", []);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Chat / Agent SDK Routes ─────────────────────────────────────
@@ -866,6 +1055,15 @@ app.get("/api/health", (_req, res) => {
     feralboardPath: FERALBOARD_PATH,
   });
 });
+
+const CLIENT_DIST_DIR = path.join(PI_WEB_ROOT, "dist");
+
+if (fs.existsSync(CLIENT_DIST_DIR)) {
+  app.use(express.static(CLIENT_DIST_DIR));
+  app.get(/^(?!\/api|\/vnc-ws).*/, (_req, res) => {
+    res.sendFile(path.join(CLIENT_DIST_DIR, "index.html"));
+  });
+}
 
 // ── VNC WebSocket Proxy ──────────────────────────────────────────
 
