@@ -1,19 +1,19 @@
 /* FeralBoard Workbench dark theme */
 
 window {
-    background-color: #1a1a2e;
+    background-color: #141218;
     color: #e0e0e0;
 }
 
 headerbar {
-    background-color: #16213e;
-    border-bottom: 1px solid #0f3460;
+    background-color: #1c1b22;
+    border-bottom: 1px solid #2d2b36;
     min-height: 48px;
 }
 
 headerbar button {
     background-color: transparent;
-    border: 1px solid #0f3460;
+    border: 1px solid #2d2b36;
     border-radius: 6px;
     color: #e0e0e0;
     padding: 4px 12px;
@@ -22,19 +22,19 @@ headerbar button {
 
 headerbar button:checked,
 headerbar button.active {
-    background-color: #0f3460;
-    color: #e94560;
-    border-color: #e94560;
+    background-color: #2d2b36;
+    color: #7c3aed;
+    border-color: #7c3aed;
 }
 
 headerbar button:hover {
-    background-color: #0f3460;
+    background-color: #2d2b36;
 }
 
 /* Card styling */
 .card {
-    background-color: #16213e;
-    border: 1px solid #0f3460;
+    background-color: #1c1b22;
+    border: 1px solid #2d2b36;
     border-radius: 10px;
     padding: 12px;
 }
@@ -52,8 +52,8 @@ headerbar button:hover {
 
 /* Toggle card */
 .toggle-card {
-    background-color: #16213e;
-    border: 1px solid #0f3460;
+    background-color: #1c1b22;
+    border: 1px solid #2d2b36;
     border-radius: 10px;
     padding: 8px;
     min-width: 130px;
@@ -61,13 +61,13 @@ headerbar button:hover {
 }
 
 .toggle-card-on {
-    border-color: #e94560;
+    border-color: #7c3aed;
 }
 
 /* Input card */
 .input-card {
-    background-color: #16213e;
-    border: 1px solid #0f3460;
+    background-color: #1c1b22;
+    border: 1px solid #2d2b36;
     border-radius: 10px;
     padding: 8px;
     min-width: 160px;
@@ -109,9 +109,9 @@ headerbar button:hover {
 
 /* Combo box */
 comboboxtext {
-    background-color: #16213e;
+    background-color: #1c1b22;
     color: #e0e0e0;
-    border: 1px solid #0f3460;
+    border: 1px solid #2d2b36;
     border-radius: 4px;
 }
 
@@ -122,29 +122,29 @@ switch {
 }
 
 switch:checked {
-    background-color: #e94560;
+    background-color: #7c3aed;
 }
 
 /* Buttons */
 button {
-    background-color: #0f3460;
+    background-color: #2d2b36;
     color: #e0e0e0;
-    border: 1px solid #0f3460;
+    border: 1px solid #2d2b36;
     border-radius: 6px;
     padding: 8px 16px;
 }
 
 button:hover {
-    background-color: #1a4080;
+    background-color: #3a3845;
 }
 
 button.suggested-action {
-    background-color: #e94560;
-    border-color: #e94560;
+    background-color: #7c3aed;
+    border-color: #7c3aed;
 }
 
 button.suggested-action:hover {
-    background-color: #ff6b81;
+    background-color: #9f67ff;
 }
 
 button.destructive-action {
@@ -159,7 +159,7 @@ scrolledwindow {
 
 /* Separator */
 separator {
-    background-color: #0f3460;
+    background-color: #2d2b36;
     min-height: 1px;
 }
 
@@ -192,33 +192,33 @@ textview text {
 
 /* Navigation cards on home page */
 .nav-card {
-    background-color: #16213e;
-    border: 1px solid #0f3460;
+    background-color: #1c1b22;
+    border: 1px solid #2d2b36;
     border-radius: 10px;
     padding: 4px;
     min-height: 80px;
 }
 
 .nav-card:hover {
-    background-color: #1a2a4e;
-    border-color: #e94560;
+    background-color: #272530;
+    border-color: #7c3aed;
 }
 
 /* WiFi page */
 .wifi-row {
-    background-color: #16213e;
-    border-bottom: 1px solid #0f3460;
+    background-color: #1c1b22;
+    border-bottom: 1px solid #2d2b36;
 }
 
 /* Level bars */
 levelbar trough {
-    background-color: #0f3460;
+    background-color: #2d2b36;
     min-height: 24px;
     border-radius: 4px;
 }
 
 levelbar block.filled {
-    background-color: #e94560;
+    background-color: #7c3aed;
     border-radius: 4px;
 }
 
@@ -228,21 +228,21 @@ list row {
 }
 
 list row:hover {
-    background-color: #1a2a4e;
+    background-color: #272530;
 }
 
 /* Entry fields */
 entry {
-    background-color: #16213e;
+    background-color: #1c1b22;
     color: #e0e0e0;
-    border: 1px solid #0f3460;
+    border: 1px solid #2d2b36;
     border-radius: 6px;
     padding: 8px;
     min-height: 36px;
 }
 
 entry:focus {
-    border-color: #e94560;
+    border-color: #7c3aed;
 }
 
 /* Radio buttons */
@@ -251,15 +251,15 @@ radiobutton {
 }
 
 radiobutton radio {
-    background-color: #16213e;
-    border: 2px solid #0f3460;
+    background-color: #1c1b22;
+    border: 2px solid #2d2b36;
     min-width: 20px;
     min-height: 20px;
 }
 
 radiobutton radio:checked {
-    background-color: #e94560;
-    border-color: #e94560;
+    background-color: #7c3aed;
+    border-color: #7c3aed;
 }
 
 /* Kiosk page */
@@ -274,8 +274,8 @@ radiobutton radio:checked {
 
 /* PIN keypad buttons */
 .pin-key {
-    background-color: #1a1a2e;
-    border: 2px solid #0f3460;
+    background-color: #141218;
+    border: 2px solid #2d2b36;
     border-radius: 12px;
     font-size: 22px;
     font-weight: bold;
@@ -283,7 +283,7 @@ radiobutton radio:checked {
     min-width: 80px;
     min-height: 60px;
 }
-.pin-key:hover { background-color: #0f3460; }
+.pin-key:hover { background-color: #2d2b36; }
 .pin-key-ok { background-color: #2ecc71; border-color: #2ecc71; }
 .pin-key-ok:hover { background-color: #27ae60; }
 .pin-key-back { background-color: #e74c3c; border-color: #e74c3c; }
@@ -300,7 +300,7 @@ radiobutton radio:checked {
     padding: 4px;
 }
 .expedicao-light:hover {
-    background-color: #16213e;
+    background-color: #1c1b22;
     border-radius: 32px;
 }
 
@@ -309,16 +309,16 @@ radiobutton radio:checked {
     min-height: 28px;
     min-width: 48px;
     padding: 2px 8px;
-    background-color: #16213e;
-    border: 1px solid #0f3460;
+    background-color: #1c1b22;
+    border: 1px solid #2d2b36;
     border-radius: 6px;
     color: #888888;
 }
-.expedicao-clear-btn:hover { background-color: #1a2a4e; }
+.expedicao-clear-btn:hover { background-color: #272530; }
 
 .expedicao-item-row {
-    background-color: #16213e;
-    border: 1px solid #0f3460;
+    background-color: #1c1b22;
+    border: 1px solid #2d2b36;
     border-radius: 8px;
     padding: 8px;
 }
