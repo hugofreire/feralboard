@@ -216,7 +216,7 @@ class HomePage(Gtk.Box):
         # Description
         desc_lbl = Gtk.Label()
         desc_lbl.set_markup(
-            f'<span size="9000" foreground="#e94560">{description}</span>'
+            f'<span size="9000" foreground="#a78bfa">{description}</span>'
         )
         vbox.pack_start(desc_lbl, False, False, 0)
 
