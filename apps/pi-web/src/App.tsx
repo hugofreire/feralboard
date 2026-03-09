@@ -13,6 +13,7 @@ import {
   Monitor, RefreshCw, Camera, Trash2, Settings, Code, MessageSquare,
   FileText, Zap, ChevronRight, FolderOpen, File, ChevronDown,
   PanelRightOpen, PanelRightClose, GripVertical, Moon, Sun, Languages,
+  Paperclip,
 } from "lucide-react";
 
 const mdComponents = { code: MarkdownCode };
@@ -485,6 +486,12 @@ function AgentView({
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [previewFile, setPreviewFile] = useState<{ path: string; content: string; relativePath: string } | null>(null);
   const [scopeSent, setScopeSent] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<{
+    originalName: string; filename: string; path: string; size: number;
+    extractedTextPath?: string; pages?: number; extractionError?: string;
+  }[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const vnc = useResizablePanel(400, 200, 800);
@@ -548,17 +555,32 @@ function AgentView({
   ].join("\n");
 
   const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim() || sending) return;
+    if ((!text.trim() && !attachedFiles.length) || sending) return;
 
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    const displayText = attachedFiles.length
+      ? `${text}\n${attachedFiles.map((f) => `📎 ${f.originalName}`).join("\n")}`
+      : text;
+    setMessages((prev) => [...prev, { role: "user", content: displayText }]);
     setInput("");
     setSending(true);
     setStreamingText("");
     setActiveTools([]);
 
     let actualMessage = text;
+    if (attachedFiles.length) {
+      const fileContext = attachedFiles
+        .map((f) => {
+          let desc = `[Attached file: "${f.originalName}" saved at ${f.path} (${(f.size / 1024).toFixed(1)} KB)`;
+          if (f.extractedTextPath) desc += ` — PDF text extracted (${f.pages} pages) to ${f.extractedTextPath}. Read that file for the content.`;
+          else if (f.extractionError) desc += ` — PDF text extraction failed: ${f.extractionError}`;
+          return desc + "]";
+        })
+        .join("\n");
+      actualMessage = `${fileContext}\n\n${text}`;
+    }
+    setAttachedFiles([]);
     if (!scopeSent) {
-      actualMessage = buildScopePrefix() + text;
+      actualMessage = buildScopePrefix() + actualMessage;
       setScopeSent(true);
     }
 
@@ -608,9 +630,28 @@ function AgentView({
       setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${err.message}` }]);
       setStreamingText("");
     } finally { setSending(false); setActiveTools([]); }
-  }, [sending, scopeSent, slug, appName]);
+  }, [sending, scopeSent, slug, appName, attachedFiles]);
 
   const abort = async () => { try { await fetch("/api/abort", { method: "POST" }); } catch {} };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      setAttachedFiles((prev) => [...prev, data]);
+    } catch (err: any) {
+      setMessages((prev) => [...prev, { role: "assistant", content: `Upload error: ${err.message}` }]);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
@@ -859,8 +900,36 @@ function AgentView({
               </div>
             )}
 
+            {/* Attached files */}
+            {attachedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-4 py-1.5 border-t border-sidebar-border shrink-0">
+                {attachedFiles.map((f, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs px-2 py-1 rounded-lg">
+                    <Paperclip className="size-3" />
+                    {f.originalName}
+                    {f.extractedTextPath && <FileText className="size-3 text-green-500" title={`${f.pages} pages extracted`} />}
+                    {f.extractionError && <X className="size-3 text-destructive" title={f.extractionError} />}
+                    <button onClick={() => setAttachedFiles((prev) => prev.filter((_, j) => j !== i))} className="hover:text-destructive">
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
             {/* Input */}
             <div className="flex items-end gap-2 px-4 py-2.5 max-md:px-3 max-md:py-2 border-t border-sidebar-border shrink-0 pb-safe">
+              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending || uploading}
+                variant="ghost"
+                size="icon"
+                className="size-[38px] rounded-xl shrink-0 text-muted-foreground hover:text-primary"
+                title="Attach file"
+              >
+                {uploading ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
+              </Button>
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -872,7 +941,7 @@ function AgentView({
               />
               <Button
                 onClick={() => sendMessage(input)}
-                disabled={sending || !input.trim()}
+                disabled={sending || (!input.trim() && !attachedFiles.length)}
                 size="icon"
                 className="size-[38px] rounded-xl shrink-0"
               >
