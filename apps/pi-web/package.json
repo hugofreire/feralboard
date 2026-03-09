@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev:server": "tsx watch server/index.ts",
-    "dev:client": "node ./scripts/vite-compat.mjs",
+    "dev:client": "vite",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "build": "node ./scripts/vite-compat.mjs build",
+    "build": "vite build",
     "postinstall": "patch-package"
   },
   "dependencies": {
