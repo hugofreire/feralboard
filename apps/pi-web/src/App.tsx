@@ -965,8 +965,10 @@ function AgentView({
     extractedTextPath?: string; pages?: number; extractionError?: string;
   }[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const dragDepthRef = useRef(0);
 
   const vnc = useResizablePanel(400, 200, 800);
 
@@ -1108,23 +1110,70 @@ function AgentView({
 
   const abort = async () => { try { await fetch("/api/abort", { method: "POST" }); } catch {} };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadFiles = async (filesToUpload: File[]) => {
+    if (!filesToUpload.length) return;
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: form });
-      if (!res.ok) throw new Error("Upload failed");
-      const data = await res.json();
-      setAttachedFiles((prev) => [...prev, data]);
+      const uploaded: {
+        originalName: string; filename: string; path: string; size: number;
+        extractedTextPath?: string; pages?: number; extractionError?: string;
+      }[] = [];
+
+      for (const file of filesToUpload) {
+        const form = new FormData();
+        form.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: form });
+        if (!res.ok) throw new Error(`Upload failed for ${file.name}`);
+        uploaded.push(await res.json());
+      }
+
+      setAttachedFiles((prev) => [...prev, ...uploaded]);
     } catch (err: any) {
       setMessages((prev) => [...prev, { role: "assistant", content: `Upload error: ${err.message}` }]);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const filesToUpload = Array.from(e.target.files || []);
+    await uploadFiles(filesToUpload);
+  };
+
+  const hasDraggedFiles = (event: React.DragEvent) => Array.from(event.dataTransfer.types).includes("Files");
+
+  const handleDragEnter = (event: React.DragEvent) => {
+    if (!hasDraggedFiles(event) || sending) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current += 1;
+    setDragActive(true);
+  };
+
+  const handleDragOver = (event: React.DragEvent) => {
+    if (!hasDraggedFiles(event) || sending) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+    if (!dragActive) setDragActive(true);
+  };
+
+  const handleDragLeave = (event: React.DragEvent) => {
+    if (!hasDraggedFiles(event) || sending) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setDragActive(false);
+  };
+
+  const handleDrop = async (event: React.DragEvent) => {
+    if (!hasDraggedFiles(event) || sending) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current = 0;
+    setDragActive(false);
+    await uploadFiles(Array.from(event.dataTransfer.files || []));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -1274,7 +1323,28 @@ function AgentView({
 
         <div className="flex flex-1 min-h-0">
           {/* ── Chat column ── */}
-          <div className="flex flex-col flex-1 min-w-0">
+          <div
+            className={cn(
+              "relative flex flex-col flex-1 min-w-0 transition-colors",
+              dragActive && "bg-primary/6"
+            )}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {dragActive && (
+              <div className="absolute inset-0 z-20 pointer-events-none">
+                <div className="absolute inset-3 rounded-3xl border-2 border-dashed border-primary/60 bg-primary/10 shadow-[inset_0_0_0_1px_rgba(124,58,237,0.08)]" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="rounded-2xl border border-primary/25 bg-background/92 px-5 py-3 text-center shadow-[0_18px_48px_rgba(124,58,237,0.18)] backdrop-blur-sm">
+                    <Paperclip className="size-5 text-primary mx-auto mb-2" />
+                    <div className="text-sm font-medium text-foreground">Drop files to attach to chat</div>
+                    <div className="text-xs text-muted-foreground mt-1">PDFs will be uploaded and extracted automatically.</div>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Messages */}
             <div className="hide-scrollbar flex-1 overflow-y-auto px-4 py-3 max-md:px-3 flex flex-col gap-3 bg-gradient-to-b from-transparent via-tint-accent/40 to-transparent">
               {messages.length === 0 && !streamingText && !sending && (
@@ -1393,7 +1463,7 @@ function AgentView({
 
             {/* Input */}
             <div className="flex items-end gap-2 px-4 py-2.5 max-md:px-3 max-md:py-2 border-t border-sidebar-border shrink-0 pb-safe">
-              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileUpload} />
               <Button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={sending || uploading}
