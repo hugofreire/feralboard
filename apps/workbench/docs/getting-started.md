@@ -19,20 +19,20 @@ This installs: python3, PyGObject, GTK3, pyserial, grim, socat.
 
 ```bash
 # Full pipeline: install deps + compile + flash
-sudo bash firmware/build-and-flash.sh
+sudo bash ../../scripts/firmware/flash.sh
 
 # Build only (no flash)
-sudo bash firmware/build-and-flash.sh --build-only
+bash ../../scripts/firmware/flash.sh --build-only
 
 # Flash only (existing hex)
-sudo bash firmware/build-and-flash.sh --flash-only
+sudo bash ../../scripts/firmware/flash.sh --flash-only
 ```
 
 | Parameter | Value |
 |-----------|-------|
 | Board | ATmega4809 via MegaCoreX |
 | Flash port | `/dev/ttyAMA3` (Pi 5) via serialUPDI |
-| Build output | `firmware/src/cli-build/Feralboard_v1.2.7.ino.hex` |
+| Build output | `../../hardware/firmware/src/cli-build/Feralboard_v1.2.7.ino.hex` |
 
 ## Running the GUI
 

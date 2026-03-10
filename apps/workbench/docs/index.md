@@ -33,7 +33,7 @@ feralboard-workbench/
 sudo bash setup.sh
 
 # Build and flash firmware
-sudo bash firmware/build-and-flash.sh
+sudo bash ../../scripts/firmware/flash.sh
 
 # Launch the GUI
 bash scripts/run.sh

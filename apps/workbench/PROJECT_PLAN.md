@@ -223,7 +223,7 @@ class SerialBridge:
 4. **Thread safety**: `SerialCommunicator` runs in background thread, GUI polls via `GLib.timeout_add`
 5. **IPC**: Unix socket at `/tmp/feralboard-workbench.sock` for remote control and screenshot automation
 6. **raspi-gpio**: TCP client to 192.168.0.142:5555 (only used by E2E tests, not by GUI)
-7. **Firmware build**: `sudo bash firmware/build-and-flash.sh` from project root
+7. **Firmware build**: `sudo bash scripts/firmware/flash.sh` from monorepo root
 
 ---
 

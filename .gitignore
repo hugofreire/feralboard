@@ -12,6 +12,7 @@ __pycache__/
 *.pyo
 site/
 screen.png
+hardware/firmware/src/cli-build/
 
 # Knowledgebase PDFs and archive (110MB+ of Siemens manuals)
 apps/pi-web/knowledgebase/*.pdf

@@ -19,7 +19,7 @@ Consolidated repo for FeralBoard development: firmware, serial library, E2E test
 sudo bash setup.sh
 
 # Build and flash firmware
-sudo bash firmware/build-and-flash.sh
+sudo bash ../../scripts/firmware/flash.sh
 
 # Run the GUI
 bash scripts/run.sh
@@ -33,12 +33,12 @@ python3 tests/test_inputs_e2e.py
 
 - **Build tool**: arduino-cli with MegaCoreX:megaavr:4809
 - **Flash tool**: avrdude via serialUPDI on /dev/ttyAMA3 (Pi 5)
-- **Script**: `sudo bash firmware/build-and-flash.sh [--build-only | --flash-only]`
+- **Script**: `sudo bash ../../scripts/firmware/flash.sh [--build-only | --flash-only]`
 
 ## Serial Ports
 
 - `/dev/ttyAMA0` — **Serial comms** (TX/RX with firmware), 9600 baud. GUI and `lib/serial_comm.py` use this.
-- `/dev/ttyAMA3` — **serialUPDI** (firmware flashing via avrdude). Only used by `firmware/build-and-flash.sh`.
+- `/dev/ttyAMA3` — **serialUPDI** (firmware flashing via avrdude). Only used by `../../scripts/firmware/flash.sh`.
 - **Critical**: The GUI must connect to ttyAMA0. Connecting to ttyAMA3 will only echo TX back (no real firmware response).
 
 ## Serial Protocol

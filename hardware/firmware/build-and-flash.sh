@@ -4,9 +4,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# Source tree lives in src/ subdirectory
 SRC_DIR="$SCRIPT_DIR/src"
-cd "$SRC_DIR"
+cd "$SCRIPT_DIR"
 
 # ── Config ──────────────────────────────────────────────────
 FQBN="MegaCoreX:megaavr:4809"
@@ -84,8 +83,7 @@ if $BUILD; then
 
   # Patch: Adafruit MAX31856 library is missing clearFaultRegister() which
   # the FeralBoard firmware uses. Add it if not present.
-  MAX_LIB_DIR="$(arduino-cli config dump --format json 2>/dev/null | python3 -c 'import sys,json; print(json.load(sys.stdin).get("directories",{}).get("user",""))' 2>/dev/null)/libraries/Adafruit_MAX31856_library"
-  [[ ! -d "$MAX_LIB_DIR" ]] && MAX_LIB_DIR="/root/Arduino/libraries/Adafruit_MAX31856_library"
+  MAX_LIB_DIR="$(find "${HOME:-/home/pi}/Arduino/libraries" /home/pi/Arduino/libraries /root/Arduino/libraries -maxdepth 1 -type d -name 'Adafruit_MAX31856_library' 2>/dev/null | head -1 || true)"
   if [[ -d "$MAX_LIB_DIR" ]] && ! grep -q "clearFaultRegister" "$MAX_LIB_DIR/Adafruit_MAX31856.h" 2>/dev/null; then
     echo "  Patching MAX31856 library (adding clearFaultRegister)..."
     sed -i 's/void setNoiseFilter(max31856_noise_filter_t noiseFilter);/void setNoiseFilter(max31856_noise_filter_t noiseFilter);\n  void clearFaultRegister(void);/' "$MAX_LIB_DIR/Adafruit_MAX31856.h"
@@ -116,8 +114,13 @@ PATCH
   SKETCH_DIR="/tmp/${INO_NAME}"
 
   rm -rf "$SKETCH_DIR"
-  cp -a "$SRC_DIR" "$SKETCH_DIR"
-  # Rename .ino if the copied dir already has it (it should since we copied everything)
+  mkdir -p "$SKETCH_DIR/src"
+  cp -a "$INO_FILE" "$SKETCH_DIR/$INO_NAME.ino"
+  for path in "$SRC_DIR"/*; do
+    name="$(basename "$path")"
+    [[ "$name" == *.ino ]] && continue
+    cp -a "$path" "$SKETCH_DIR/src/"
+  done
 
   echo "  Sketch: $INO_NAME"
   arduino-cli compile \
