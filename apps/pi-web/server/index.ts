@@ -2,12 +2,14 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import multer from "multer";
+import { createReadStream } from "fs";
 // @ts-ignore – pdfjs-dist legacy build has no TS declarations
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { spawn, execSync, spawnSync } from "child_process";
 import path from "path";
 import fs from "fs";
 import net from "net";
+import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { WebSocketServer, WebSocket } from "ws";
 import {
@@ -18,6 +20,7 @@ import {
   createCodingTools,
   type AgentSession,
 } from "@mariozechner/pi-coding-agent";
+import { DeepgramClient } from "@deepgram/sdk";
 import { Type } from "@sinclair/typebox";
 
 const app = express();
@@ -29,6 +32,10 @@ const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PI_WEB_ROOT = path.resolve(SERVER_DIR, "..");
 const MONOREPO_ROOT = path.resolve(PI_WEB_ROOT, "..", "..");
 const DEFAULT_FERALBOARD_PATH = path.join(MONOREPO_ROOT, "apps", "workbench");
+const DEV_CLIENT_URL = process.env.PI_WEB_DEV_CLIENT_URL || "http://localhost:5173";
+const SERVE_DIST_CLIENT = process.env.PI_WEB_SERVE_DIST === "1";
+const BRAVE_SEARCH_API_KEY = process.env.BRAVE_SEARCH_API_KEY || "";
+const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || "";
 const DISPLAY_ASSETS_DIR = path.join(PI_WEB_ROOT, ".pi", "display-assets");
 const DISPLAY_SCRIPT_PATH = path.join(PI_WEB_ROOT, "server", "scripts", "setup_display.sh");
 const SWAY_CONFIG_PATH = "/etc/sway/config.d/99-custom-config";
@@ -45,7 +52,13 @@ const GUI_PAGES_DIR = path.join(FERALBOARD_PATH, "gui/pages");
 
 // ── File Upload ─────────────────────────────────────────────────
 const UPLOADS_DIR = path.join(PI_WEB_ROOT, "uploads");
+const DOCUMENTS_DIR = path.join(UPLOADS_DIR, "documents");
+const LARGE_PDF_PAGE_THRESHOLD = Number(process.env.PDF_LARGE_PAGE_THRESHOLD || 30);
+const DOCUMENT_SEARCH_RESULT_LIMIT = 5;
+const DOCUMENT_READ_PAGE_LIMIT = 5;
+const AUDIO_TRANSCRIPTION_EXTENSIONS = new Set([".m4a", ".mp3", ".wav", ".webm", ".mp4", ".mpeg", ".mpga", ".ogg"]);
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+if (!fs.existsSync(DOCUMENTS_DIR)) fs.mkdirSync(DOCUMENTS_DIR, { recursive: true });
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -62,10 +75,11 @@ const upload = multer({
 
 // ── In-Process SDK Session Management ───────────────────────────
 
-const authStorage = new AuthStorage();
+const authStorage = AuthStorage.create();
 if (process.env.OPENAI_API_KEY) authStorage.setRuntimeApiKey("openai", process.env.OPENAI_API_KEY);
 if (process.env.ANTHROPIC_API_KEY) authStorage.setRuntimeApiKey("anthropic", process.env.ANTHROPIC_API_KEY);
 const modelRegistry = new ModelRegistry(authStorage);
+const deepgramClient = DEEPGRAM_API_KEY ? new DeepgramClient({ apiKey: DEEPGRAM_API_KEY }) : null;
 
 // ── IPC Helper ──────────────────────────────────────────────────
 
@@ -178,6 +192,101 @@ const feralboardTools = [
       };
     },
   },
+  {
+    name: "web_search",
+    label: "Web Search",
+    description: "Search the public web with Brave Search and return the top results with titles, URLs, and snippets. Use this for current documentation, library updates, APIs, or other information not already in the local codebase.",
+    parameters: Type.Object({
+      query: Type.String({ description: "Search query to run against Brave Search." }),
+      count: Type.Optional(Type.Number({ description: "Number of web results to return. Defaults to 5 and is capped at 10." })),
+    }),
+    async execute(_toolCallId: string, params: { query: string; count?: number }, signal?: AbortSignal) {
+      const query = params.query.trim();
+      if (!query) throw new Error("query is required");
+      const count = Math.max(1, Math.min(10, Math.floor(params.count ?? 5)));
+      const results = await searchBraveWeb(query, count, signal);
+      return {
+        content: [{ type: "text" as const, text: formatBraveResults(query, results) }],
+        details: {
+          query,
+          count,
+          results,
+        },
+      };
+    },
+  },
+  {
+    name: "document_manifest",
+    label: "Document Manifest",
+    description: "Inspect a large uploaded PDF before reading pages. Returns metadata, storage status, and the document page count.",
+    parameters: Type.Object({
+      documentId: Type.String({ description: "Large document id returned when the PDF was indexed on the server." }),
+    }),
+    async execute(_toolCallId: string, params: { documentId: string }) {
+      const manifest = loadDocumentManifest(params.documentId);
+      return {
+        content: [{ type: "text" as const, text: summarizeDocumentManifest(manifest) }],
+        details: {},
+      };
+    },
+  },
+  {
+    name: "document_search",
+    label: "Document Search",
+    description: "Search a large uploaded PDF by keyword before reading pages. Use this first to find the most relevant pages.",
+    parameters: Type.Object({
+      documentId: Type.String({ description: "Large document id returned when the PDF was indexed on the server." }),
+      query: Type.String({ description: "Keywords or a short question to search for in the document text." }),
+    }),
+    async execute(_toolCallId: string, params: { documentId: string; query: string }) {
+      const manifest = loadDocumentManifest(params.documentId);
+      const hits = searchDocumentPages(manifest, params.query);
+      const lines = [
+        `Search query: ${params.query}`,
+        `Document: ${manifest.originalFilename} (${manifest.documentId})`,
+      ];
+
+      if (hits.length === 0) {
+        lines.push("No page hits found.");
+      } else {
+        lines.push("Top page hits:");
+        for (const hit of hits) lines.push(`- Page ${hit.page} (score ${hit.score}): ${hit.snippet}`);
+      }
+
+      return {
+        content: [{ type: "text" as const, text: lines.join("\n") }],
+        details: {},
+      };
+    },
+  },
+  {
+    name: "document_read_pages",
+    label: "Document Read Pages",
+    description: "Read a small page range from a large uploaded PDF after searching. Keep reads narrow and focused.",
+    parameters: Type.Object({
+      documentId: Type.String({ description: "Large document id returned when the PDF was indexed on the server." }),
+      startPage: Type.Number({ description: "First page to read, 1-based." }),
+      endPage: Type.Optional(Type.Number({ description: "Last page to read, inclusive. Defaults to startPage." })),
+    }),
+    async execute(_toolCallId: string, params: { documentId: string; startPage: number; endPage?: number }) {
+      const manifest = loadDocumentManifest(params.documentId);
+      const startPage = Math.max(1, Math.floor(params.startPage));
+      const endPage = Math.max(startPage, Math.floor(params.endPage ?? params.startPage));
+      if (endPage - startPage + 1 > DOCUMENT_READ_PAGE_LIMIT) {
+        throw new Error(`Read at most ${DOCUMENT_READ_PAGE_LIMIT} pages at a time`);
+      }
+
+      const pages: string[] = [];
+      for (let page = startPage; page <= endPage; page++) {
+        pages.push(`Page ${page}\n${readDocumentPage(manifest, page) || "(empty page)"}`);
+      }
+
+      return {
+        content: [{ type: "text" as const, text: pages.join("\n\n") }],
+        details: {},
+      };
+    },
+  },
 ];
 
 const sessions = new Map<string, AgentSession>();
@@ -221,6 +330,247 @@ process.on("SIGTERM", () => {
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function createDocumentId() {
+  return `doc_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
+}
+
+function normalizePdfText(text: string) {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function isAudioUpload(filename: string) {
+  return AUDIO_TRANSCRIPTION_EXTENSIONS.has(path.extname(filename).toLowerCase());
+}
+
+async function transcribeAudioFile(filePath: string) {
+  if (!deepgramClient) {
+    throw new Error("DEEPGRAM_API_KEY is not configured on the pi-web server");
+  }
+
+  const response = await deepgramClient.listen.v1.media.transcribeFile(
+    createReadStream(filePath),
+    {
+      model: "nova-3",
+      detect_language: true,
+      smart_format: true,
+      punctuate: true,
+      paragraphs: true,
+    }
+  );
+  if (!("results" in response)) {
+    throw new Error(`Deepgram accepted the file asynchronously (${response.request_id}); synchronous transcript not available`);
+  }
+
+  const transcript = normalizePdfText(
+    response.results?.channels?.[0]?.alternatives?.[0]?.transcript || ""
+  );
+  if (!transcript) {
+    throw new Error("Deepgram returned an empty transcript");
+  }
+
+  return {
+    transcript,
+    model: "nova-3",
+    duration: response.metadata?.duration,
+  };
+}
+
+type BraveWebResult = {
+  title?: string;
+  url?: string;
+  description?: string;
+};
+
+async function searchBraveWeb(query: string, count: number, signal?: AbortSignal) {
+  if (!BRAVE_SEARCH_API_KEY) {
+    throw new Error("BRAVE_SEARCH_API_KEY is not configured on the pi-web server");
+  }
+
+  const params = new URLSearchParams({
+    q: query,
+    count: String(count),
+    text_decorations: "0",
+    search_lang: "en",
+    country: "us",
+    safesearch: "moderate",
+  });
+  const response = await fetch(`https://api.search.brave.com/res/v1/web/search?${params.toString()}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      "X-Subscription-Token": BRAVE_SEARCH_API_KEY,
+    },
+    signal,
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Brave Search API error (${response.status}): ${body.slice(0, 200)}`);
+  }
+
+  const payload = await response.json() as { web?: { results?: BraveWebResult[] } };
+  return payload.web?.results ?? [];
+}
+
+function formatBraveResults(query: string, results: BraveWebResult[]) {
+  if (results.length === 0) {
+    return `No Brave Search web results found for "${query}".`;
+  }
+
+  const lines = [`Brave Search results for "${query}":`];
+  for (const [index, result] of results.entries()) {
+    lines.push(`${index + 1}. ${result.title || result.url || "Untitled result"}`);
+    if (result.url) lines.push(`   URL: ${result.url}`);
+    if (result.description) lines.push(`   Snippet: ${result.description}`);
+  }
+  return lines.join("\n");
+}
+
+async function extractPdfPages(filePath: string): Promise<PdfExtractionResult> {
+  const data = new Uint8Array(fs.readFileSync(filePath));
+  const doc = await getDocument({ data, useSystemFonts: true }).promise;
+  const pageTexts: string[] = [];
+
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = normalizePdfText(
+      (content.items as any[])
+        .filter((item) => "str" in item)
+        .map((item) => item.str)
+        .join(" ")
+    );
+    pageTexts.push(pageText);
+  }
+
+  return { pageCount: doc.numPages, pageTexts };
+}
+
+function summarizeDocumentManifest(manifest: StoredDocumentManifest) {
+  return [
+    `Document ID: ${manifest.documentId}`,
+    `Filename: ${manifest.originalFilename}`,
+    `Pages: ${manifest.pageCount}`,
+    `Status: ${manifest.extractionStatus}`,
+    `Manifest: ${manifest.manifestPath}`,
+    `Stored PDF: ${manifest.originalPath}`,
+    `Page text directory: ${manifest.pagesDir}`,
+    manifest.extractionError ? `Extraction error: ${manifest.extractionError}` : null,
+  ].filter(Boolean).join("\n");
+}
+
+function documentDir(documentId: string) {
+  return path.join(DOCUMENTS_DIR, path.basename(documentId));
+}
+
+function manifestPathFor(documentId: string) {
+  return path.join(documentDir(documentId), "manifest.json");
+}
+
+function loadDocumentManifest(documentId: string): StoredDocumentManifest {
+  const manifestPath = manifestPathFor(documentId);
+  if (!fs.existsSync(manifestPath)) throw new Error(`Document "${documentId}" not found`);
+  return JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+}
+
+function writeDocumentManifest(manifest: StoredDocumentManifest) {
+  fs.writeFileSync(manifest.manifestPath, JSON.stringify(manifest, null, 2) + "\n", "utf-8");
+}
+
+function readDocumentPage(manifest: StoredDocumentManifest, pageNumber: number) {
+  if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > manifest.pageCount) {
+    throw new Error(`Page ${pageNumber} is out of range for document "${manifest.documentId}"`);
+  }
+  const pageFile = manifest.pageFiles[pageNumber - 1];
+  return fs.existsSync(pageFile) ? fs.readFileSync(pageFile, "utf-8") : "";
+}
+
+function queryTerms(query: string) {
+  return query.toLowerCase().split(/\s+/).map((term) => term.trim()).filter(Boolean);
+}
+
+function countTermHits(text: string, terms: string[]) {
+  const haystack = text.toLowerCase();
+  return terms.reduce((score, term) => score + (haystack.split(term).length - 1), 0);
+}
+
+function buildSnippet(text: string, terms: string[]) {
+  if (!text.trim()) return "(empty page)";
+  const lower = text.toLowerCase();
+  const firstHit = terms.map((term) => lower.indexOf(term)).filter((idx) => idx >= 0).sort((a, b) => a - b)[0];
+  const center = firstHit >= 0 ? firstHit : 0;
+  const start = Math.max(0, center - 90);
+  const snippet = text.slice(start, start + 220).trim();
+  return `${start > 0 ? "..." : ""}${snippet}${start + 220 < text.length ? "..." : ""}`;
+}
+
+function searchDocumentPages(manifest: StoredDocumentManifest, query: string) {
+  const terms = queryTerms(query);
+  if (terms.length === 0) throw new Error("query is required");
+
+  return manifest.pageFiles
+    .map((pageFile, index) => {
+      const text = fs.readFileSync(pageFile, "utf-8");
+      const score = countTermHits(text, terms);
+      return score > 0 ? {
+        page: index + 1,
+        score,
+        snippet: buildSnippet(text, terms),
+      } : null;
+    })
+    .filter((result): result is { page: number; score: number; snippet: string } => Boolean(result))
+    .sort((a, b) => b.score - a.score || a.page - b.page)
+    .slice(0, DOCUMENT_SEARCH_RESULT_LIMIT);
+}
+
+function deleteUploadedArtifact(filename: string) {
+  const filePath = path.join(UPLOADS_DIR, path.basename(filename));
+  if (!fs.existsSync(filePath)) return false;
+  fs.unlinkSync(filePath);
+
+  const ext = path.extname(filePath);
+  if (/\.pdf$/i.test(ext)) {
+    const textPath = filePath.replace(/\.pdf$/i, ".txt");
+    if (fs.existsSync(textPath)) fs.unlinkSync(textPath);
+  }
+  if (isAudioUpload(filePath)) {
+    const textPath = `${filePath}.txt`;
+    if (fs.existsSync(textPath)) fs.unlinkSync(textPath);
+  }
+
+  return true;
+}
+
+async function createLargePdfDocument(originalname: string, filePath: string, size: number, extracted: PdfExtractionResult) {
+  const documentId = createDocumentId();
+  const docDir = documentDir(documentId);
+  const pagesDir = path.join(docDir, "pages");
+  ensureDir(pagesDir);
+
+  const originalPath = path.join(docDir, "original.pdf");
+  fs.renameSync(filePath, originalPath);
+
+  const pageFiles = extracted.pageTexts.map((_pageText, index) => path.join(pagesDir, `${String(index + 1).padStart(4, "0")}.txt`));
+  for (let i = 0; i < extracted.pageTexts.length; i++) {
+    fs.writeFileSync(pageFiles[i], extracted.pageTexts[i], "utf-8");
+  }
+
+  const manifest: StoredDocumentManifest = {
+    documentId,
+    originalFilename: originalname,
+    originalPath,
+    manifestPath: path.join(docDir, "manifest.json"),
+    pagesDir,
+    pageCount: extracted.pageCount,
+    pageFiles,
+    extractionStatus: "indexed",
+    createdAt: new Date().toISOString(),
+    storageBytes: size + pageFiles.reduce((total, pageFile) => total + fs.statSync(pageFile).size, 0),
+  };
+  writeDocumentManifest(manifest);
+  return manifest;
 }
 
 function discoverApps(): any[] {
@@ -327,6 +677,25 @@ type DisplaySettingsApplyBody = {
   customBackgroundDataUrl?: string;
   backgroundMode?: "default" | "custom" | "path";
   backgroundPath?: string;
+};
+
+type StoredDocumentManifest = {
+  documentId: string;
+  originalFilename: string;
+  originalPath: string;
+  manifestPath: string;
+  pagesDir: string;
+  pageCount: number;
+  pageFiles: string[];
+  extractionStatus: "indexed" | "failed";
+  extractionError?: string;
+  createdAt: string;
+  storageBytes: number;
+};
+
+type PdfExtractionResult = {
+  pageCount: number;
+  pageTexts: string[];
 };
 
 function buildDisplayScriptArgs(body: DisplaySettingsApplyBody) {
@@ -662,29 +1031,42 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
   const { originalname, filename, size } = req.file;
   const filePath = path.join(UPLOADS_DIR, filename);
 
-  const result: Record<string, any> = { originalName: originalname, filename, size, path: filePath };
+  const result: Record<string, any> = { kind: "file", originalName: originalname, filename, size, path: filePath };
 
   // Auto-extract text from PDFs
   if (/\.pdf$/i.test(originalname)) {
     try {
-      const data = new Uint8Array(fs.readFileSync(filePath));
-      const doc = await getDocument({ data, useSystemFonts: true }).promise;
-      const chunks: string[] = [];
-      for (let i = 1; i <= doc.numPages; i++) {
-        const page = await doc.getPage(i);
-        const content = await page.getTextContent();
-        const pageText = (content.items as any[])
-          .filter((item) => "str" in item)
-          .map((item) => item.str)
-          .join(" ");
-        if (pageText.trim()) chunks.push(pageText);
+      const extracted = await extractPdfPages(filePath);
+      result.pages = extracted.pageCount;
+
+      if (extracted.pageCount > LARGE_PDF_PAGE_THRESHOLD) {
+        const manifest = await createLargePdfDocument(originalname, filePath, size, extracted);
+        result.kind = "large_document";
+        result.path = manifest.originalPath;
+        result.documentId = manifest.documentId;
+        result.manifestPath = manifest.manifestPath;
+        result.indexedOnServer = true;
+        result.threshold = LARGE_PDF_PAGE_THRESHOLD;
+      } else {
+        const textFilename = filename.replace(/\.pdf$/i, ".txt");
+        const textPath = path.join(UPLOADS_DIR, textFilename);
+        fs.writeFileSync(textPath, extracted.pageTexts.filter(Boolean).join("\n\n"), "utf-8");
+        result.extractedText = textFilename;
+        result.extractedTextPath = textPath;
       }
-      const textFilename = filename.replace(/\.pdf$/i, ".txt");
-      const textPath = path.join(UPLOADS_DIR, textFilename);
-      fs.writeFileSync(textPath, chunks.join("\n\n"), "utf-8");
-      result.extractedText = textFilename;
+    } catch (err: any) {
+      result.extractionError = err.message;
+    }
+  }
+  else if (isAudioUpload(originalname)) {
+    try {
+      const transcription = await transcribeAudioFile(filePath);
+      const textPath = `${filePath}.txt`;
+      fs.writeFileSync(textPath, transcription.transcript, "utf-8");
       result.extractedTextPath = textPath;
-      result.pages = doc.numPages;
+      result.transcriptionModel = transcription.model;
+      result.durationSeconds = transcription.duration;
+      result.transcriptSource = "deepgram";
     } catch (err: any) {
       result.extractionError = err.message;
     }
@@ -699,17 +1081,71 @@ app.get("/api/uploads", (_req, res) => {
       .filter((f) => !f.startsWith("."))
       .map((f) => {
         const stat = fs.statSync(path.join(UPLOADS_DIR, f));
-        return { filename: f, size: stat.size, createdAt: stat.birthtime };
+        return stat.isFile() ? { filename: f, size: stat.size, createdAt: stat.birthtime } : null;
       })
+      .filter((file): file is { filename: string; size: number; createdAt: Date } => Boolean(file))
       .sort((a, b) => +b.createdAt - +a.createdAt);
     res.json(files);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete("/api/uploads/:filename", (req, res) => {
-  const filePath = path.join(UPLOADS_DIR, path.basename(req.params.filename));
-  if (!fs.existsSync(filePath)) { res.status(404).json({ error: "Not found" }); return; }
-  fs.unlinkSync(filePath);
+  const deleted = deleteUploadedArtifact(req.params.filename);
+  if (!deleted) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ ok: true });
+});
+
+app.get("/api/documents/:id/manifest", (req, res) => {
+  try {
+    res.json(loadDocumentManifest(req.params.id));
+  } catch (err: any) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.get("/api/documents/:id/search", (req, res) => {
+  try {
+    const query = String(req.query.q || "").trim();
+    const manifest = loadDocumentManifest(req.params.id);
+    res.json({
+      documentId: manifest.documentId,
+      originalFilename: manifest.originalFilename,
+      results: searchDocumentPages(manifest, query),
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get("/api/documents/:id/pages", (req, res) => {
+  try {
+    const manifest = loadDocumentManifest(req.params.id);
+    const startPage = Math.max(1, Number(req.query.startPage || req.query.page || 1));
+    const endPage = Math.max(startPage, Number(req.query.endPage || startPage));
+    if (endPage - startPage + 1 > DOCUMENT_READ_PAGE_LIMIT) {
+      res.status(400).json({ error: `Read at most ${DOCUMENT_READ_PAGE_LIMIT} pages at a time` });
+      return;
+    }
+
+    res.json({
+      documentId: manifest.documentId,
+      pages: Array.from({ length: endPage - startPage + 1 }, (_, index) => {
+        const pageNumber = startPage + index;
+        return { page: pageNumber, text: readDocumentPage(manifest, pageNumber) };
+      }),
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete("/api/documents/:id", (req, res) => {
+  const targetDir = documentDir(req.params.id);
+  if (!fs.existsSync(targetDir)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  fs.rmSync(targetDir, { recursive: true, force: true });
   res.json({ ok: true });
 });
 
@@ -1058,7 +1494,12 @@ app.get("/api/health", (_req, res) => {
 
 const CLIENT_DIST_DIR = path.join(PI_WEB_ROOT, "dist");
 
-if (fs.existsSync(CLIENT_DIST_DIR)) {
+if (!SERVE_DIST_CLIENT) {
+  app.get(/^(?!\/api|\/vnc-ws).*/, (req, res) => {
+    const target = new URL(req.originalUrl || "/", DEV_CLIENT_URL);
+    res.redirect(target.toString());
+  });
+} else if (fs.existsSync(CLIENT_DIST_DIR)) {
   app.use(express.static(CLIENT_DIST_DIR));
   app.get(/^(?!\/api|\/vnc-ws).*/, (_req, res) => {
     res.sendFile(path.join(CLIENT_DIST_DIR, "index.html"));

@@ -13,7 +13,7 @@ import {
   Monitor, RefreshCw, Camera, Trash2, Settings, Code, MessageSquare,
   FileText, Zap, ChevronRight, FolderOpen, File, ChevronDown,
   PanelRightOpen, PanelRightClose, GripVertical, Moon, Sun, Languages,
-  Paperclip,
+  Paperclip, Search,
   Upload, RotateCcw, RotateCw,
 } from "lucide-react";
 
@@ -38,6 +38,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   toolCalls?: string[];
+  attachments?: UploadedAttachment[];
 }
 
 interface FileEntry {
@@ -57,6 +58,216 @@ interface SessionInfo {
   filePath: string;
   cwd: string;
   isCoding: boolean;
+}
+
+type UploadedAttachment = {
+  kind: "file" | "large_document";
+  originalName: string;
+  filename: string;
+  path: string;
+  size: number;
+  extractedTextPath?: string;
+  pages?: number;
+  extractionError?: string;
+  documentId?: string;
+  manifestPath?: string;
+  indexedOnServer?: boolean;
+  threshold?: number;
+  transcriptSource?: string;
+  transcriptionModel?: string;
+  durationSeconds?: number;
+};
+
+type PendingUpload = {
+  clientId: string;
+  originalName: string;
+  size: number;
+  startedAt: number;
+  isPdf: boolean;
+  isAudio: boolean;
+};
+
+const PENDING_FILE_STAGES = [
+  { label: "Uploading asset", detail: "Saving the original file to pi-web." },
+  { label: "Preparing attachment", detail: "Checking metadata and readying chat context." },
+];
+
+const PENDING_PDF_STAGES = [
+  { label: "Uploading PDF", detail: "Saving the original manual on the server." },
+  { label: "Extracting pages", detail: "Reading the PDF text page by page." },
+  { label: "Indexing document", detail: "Preparing retrieval metadata for the agent." },
+];
+
+const PENDING_AUDIO_STAGES = [
+  { label: "Uploading audio", detail: "Saving the audio attachment on the server." },
+  { label: "Transcribing audio", detail: "Sending the audio to Deepgram for speech-to-text." },
+  { label: "Preparing transcript", detail: "Writing the transcript file for the agent to read." },
+];
+
+const DEFAULT_PENDING_STAGE = {
+  label: "Processing attachment",
+  detail: "Preparing the attachment for chat.",
+};
+
+function formatToolLabel(tool: string, args?: Record<string, any>) {
+  if (tool === "web_search") {
+    const query = typeof args?.query === "string" ? args.query.trim() : "";
+    return query ? `web_search: ${query.slice(0, 80)}` : "web_search";
+  }
+  if (tool === "bash" && typeof args?.command === "string") {
+    return `${tool}: ${args.command.slice(0, 60)}`;
+  }
+  return tool;
+}
+
+function describeToolActivity(toolLabel: string) {
+  if (toolLabel.startsWith("web_search")) {
+    const query = toolLabel.includes(":") ? toolLabel.split(":").slice(1).join(":").trim() : "";
+    return {
+      title: "Searching the web",
+      detail: query ? `Querying Brave Search for "${query}".` : "Querying Brave Search.",
+      icon: "search" as const,
+    };
+  }
+  return {
+    title: "Agent working",
+    detail: toolLabel,
+    icon: "spinner" as const,
+  };
+}
+
+function formatAttachmentSize(size: number) {
+  return size >= 1024 * 1024 ? `${(size / (1024 * 1024)).toFixed(1)} MB` : `${(size / 1024).toFixed(1)} KB`;
+}
+
+function isAudioAttachment(name: string) {
+  return /\.(m4a|mp3|wav|webm|mp4|mpeg|mpga|ogg)$/i.test(name);
+}
+
+function AttachmentCard({
+  attachment,
+  onRemove,
+  compact = false,
+}: {
+  attachment: UploadedAttachment;
+  onRemove?: () => void;
+  compact?: boolean;
+}) {
+  const isLargeDocument = attachment.kind === "large_document";
+  const isAudioTranscript = Boolean(attachment.transcriptSource && attachment.extractedTextPath);
+  const title = isLargeDocument ? (attachment.indexedOnServer ? "Large PDF indexed" : "Large PDF") : "Attached file";
+  const subtitle = attachment.extractionError
+    ? attachment.extractionError
+    : isLargeDocument
+      ? `Document ID ${attachment.documentId} • ${attachment.pages || 0} pages`
+      : isAudioTranscript
+        ? `${attachment.transcriptSource} transcript ready${attachment.transcriptionModel ? ` • ${attachment.transcriptionModel}` : ""}`
+      : attachment.extractedTextPath
+        ? `${attachment.pages || 0} pages extracted for direct reading`
+        : `${formatAttachmentSize(attachment.size)}`;
+
+  return (
+    <div className={cn(
+      "rounded-2xl border border-border/70 bg-card/90 shadow-[0_14px_34px_rgba(15,23,42,0.08)] backdrop-blur-sm",
+      compact ? "p-3" : "p-3.5"
+    )}>
+      <div className="flex items-start gap-3">
+        <div className={cn(
+          "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-2xl border",
+          attachment.extractionError
+            ? "border-destructive/30 bg-destructive/10 text-destructive"
+            : isLargeDocument
+              ? "border-primary/20 bg-primary/10 text-primary"
+              : "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
+        )}>
+          {attachment.extractionError ? <X className="size-4" /> : isLargeDocument ? <Search className="size-4" /> : <FileText className="size-4" />}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-mono uppercase tracking-[0.22em] text-muted-foreground/70">{title}</div>
+              <div className="truncate text-sm font-medium text-foreground">{attachment.originalName}</div>
+            </div>
+            {onRemove && (
+              <button
+                onClick={onRemove}
+                className="rounded-lg p-1 text-muted-foreground/60 transition-colors hover:text-destructive"
+                title="Remove attachment"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="mt-1 text-xs text-muted-foreground">{subtitle}</div>
+
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {isLargeDocument && !attachment.extractionError && (
+              <>
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[11px] text-primary">
+                  <Zap className="size-3" /> Indexed on server
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-foreground/5 px-2 py-1 text-[11px] text-muted-foreground">
+                  <Search className="size-3" /> Retrieval-first
+                </span>
+              </>
+            )}
+            {!isLargeDocument && attachment.extractedTextPath && !attachment.extractionError && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-600">
+                <Check className="size-3" /> {isAudioTranscript ? "Transcript ready" : "Extracted text ready"}
+              </span>
+            )}
+            {isAudioTranscript && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-[11px] text-primary">
+                <Search className="size-3" /> Deepgram
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1 rounded-full bg-foreground/5 px-2 py-1 text-[11px] text-muted-foreground">
+              <Upload className="size-3" /> {formatAttachmentSize(attachment.size)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PendingAttachmentCard({
+  upload,
+  stageIndex,
+}: {
+  upload: PendingUpload;
+  stageIndex: number;
+}) {
+  const stages = upload.isPdf ? PENDING_PDF_STAGES : upload.isAudio ? PENDING_AUDIO_STAGES : PENDING_FILE_STAGES;
+  const safeStageIndex = Number.isFinite(stageIndex) ? Math.max(0, Math.floor(stageIndex)) : 0;
+  const stage = stages[Math.min(safeStageIndex, Math.max(0, stages.length - 1))];
+  const stageLabel = stage?.label || DEFAULT_PENDING_STAGE.label;
+  const stageDetail = stage?.detail || DEFAULT_PENDING_STAGE.detail;
+
+  return (
+    <div className="rounded-2xl border border-primary/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.12),rgba(255,255,255,0.04))] p-3.5 shadow-[0_18px_40px_rgba(124,58,237,0.14)]">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+          <Loader2 className="size-4 animate-spin" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-mono uppercase tracking-[0.22em] text-primary/80">
+            {upload.isPdf ? "PDF processing" : "Uploading"}
+          </div>
+          <div className="truncate text-sm font-medium text-foreground">{upload.originalName}</div>
+          <div className="mt-1 text-xs text-muted-foreground">{stageDetail}</div>
+          <div className="mt-2 flex items-center gap-2 text-[11px] text-primary/80">
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1">
+              <ChevronRight className="size-3" /> {stageLabel}
+            </span>
+            <span className="text-muted-foreground">{formatAttachmentSize(upload.size)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 type SplashMode = "unchanged" | "preset" | "custom";
@@ -960,12 +1171,11 @@ function AgentView({
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [previewFile, setPreviewFile] = useState<{ path: string; content: string; relativePath: string } | null>(null);
   const [scopeSent, setScopeSent] = useState(false);
-  const [attachedFiles, setAttachedFiles] = useState<{
-    originalName: string; filename: string; path: string; size: number;
-    extractedTextPath?: string; pages?: number; extractionError?: string;
-  }[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<UploadedAttachment[]>([]);
+  const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [processingTick, setProcessingTick] = useState(() => Date.now());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const dragDepthRef = useRef(0);
@@ -975,6 +1185,12 @@ function AgentView({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText]);
+
+  useEffect(() => {
+    if (pendingUploads.length === 0) return;
+    const interval = window.setInterval(() => setProcessingTick(Date.now()), 900);
+    return () => window.clearInterval(interval);
+  }, [pendingUploads.length]);
 
   // Load files and sessions on mount
   useEffect(() => {
@@ -1027,28 +1243,40 @@ function AgentView({
     `Files in scope: kiosk_apps/${slug}/app.json, kiosk_apps/${slug}/.env, gui/pages/${slug}.py`,
     `Read kiosk_apps/CLAUDE.md for the full development guide. Read the app files before making changes.`,
     `A Siemens PLC knowledgebase is available at ../pi-web/knowledgebase/ with extracted communication references for LOGO! 8, S7-1200, S7-1500, S7-200, S7-300, and S7-400. Start with plc_reference_index.md for an overview, then read the relevant *_communication_reference.md file. Use this when you need Modbus register mappings, protocol details, connection parameters, or I/O addressing for Siemens PLCs.]`,
+    `[Tooling note: a custom tool named "web_search" is available for live web lookup through Brave Search. Use it when you need current external documentation or recent information not present in the local repo.]`,
     ``,
   ].join("\n");
 
   const sendMessage = useCallback(async (text: string) => {
-    if ((!text.trim() && !attachedFiles.length) || sending) return;
+    if ((!text.trim() && !attachedFiles.length) || sending || pendingUploads.length > 0) return;
 
-    const displayText = attachedFiles.length
-      ? `${text}\n${attachedFiles.map((f) => `📎 ${f.originalName}`).join("\n")}`
-      : text;
-    setMessages((prev) => [...prev, { role: "user", content: displayText }]);
+    const outgoingAttachments = attachedFiles;
+    setMessages((prev) => [...prev, { role: "user", content: text.trim(), attachments: outgoingAttachments }]);
     setInput("");
     setSending(true);
     setStreamingText("");
     setActiveTools([]);
 
     let actualMessage = text;
-    if (attachedFiles.length) {
-      const fileContext = attachedFiles
+    if (outgoingAttachments.length) {
+      const fileContext = outgoingAttachments
         .map((f) => {
           let desc = `[Attached file: "${f.originalName}" saved at ${f.path} (${(f.size / 1024).toFixed(1)} KB)`;
-          if (f.extractedTextPath) desc += ` — PDF text extracted (${f.pages} pages) to ${f.extractedTextPath}. Read that file for the content.`;
-          else if (f.extractionError) desc += ` — PDF text extraction failed: ${f.extractionError}`;
+          if (f.kind === "large_document" && f.documentId) {
+            return [
+              `[Attached large document: "${f.originalName}"`,
+              `Document ID: ${f.documentId}`,
+              `Pages: ${f.pages || "unknown"}`,
+              `Indexed on server at ${f.manifestPath}.`,
+              `Use document_manifest first, then document_search, then document_read_pages.`,
+              `Do not assume the document text is already in context.]`,
+            ].join("\n");
+          }
+          if (f.transcriptSource && f.extractedTextPath) {
+            desc += ` — Audio transcript generated by ${f.transcriptSource}${f.transcriptionModel ? ` (${f.transcriptionModel})` : ""} at ${f.extractedTextPath}. Read that file for the content.`;
+          }
+          else if (f.extractedTextPath) desc += ` — PDF text extracted (${f.pages} pages) to ${f.extractedTextPath}. Read that file for the content.`;
+          else if (f.extractionError) desc += ` — Attachment processing failed: ${f.extractionError}`;
           return desc + "]";
         })
         .join("\n");
@@ -1087,7 +1315,7 @@ function AgentView({
             const event = JSON.parse(line.slice(6));
             if (event.type === "delta") { accumulated += event.text; setStreamingText(accumulated); }
             else if (event.type === "tool_start") {
-              const label = `${event.tool}${event.args?.command ? `: ${event.args.command.slice(0, 60)}` : ""}`;
+              const label = formatToolLabel(event.tool, event.args);
               tools.push(label); setActiveTools([...tools]);
             }
             else if (event.type === "tool_end") setActiveTools([]);
@@ -1106,30 +1334,51 @@ function AgentView({
       setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${err.message}` }]);
       setStreamingText("");
     } finally { setSending(false); setActiveTools([]); }
-  }, [sending, scopeSent, slug, appName, attachedFiles]);
+  }, [sending, scopeSent, slug, appName, attachedFiles, pendingUploads.length]);
 
   const abort = async () => { try { await fetch("/api/abort", { method: "POST" }); } catch {} };
+
+  const removeAttachedFile = async (attachment: UploadedAttachment) => {
+    setAttachedFiles((prev) => prev.filter((item) => item !== attachment));
+    try {
+      if (attachment.kind === "large_document" && attachment.documentId) {
+        await fetch(`/api/documents/${encodeURIComponent(attachment.documentId)}`, { method: "DELETE" });
+      } else {
+        await fetch(`/api/uploads/${encodeURIComponent(attachment.filename)}`, { method: "DELETE" });
+      }
+    } catch {}
+  };
 
   const uploadFiles = async (filesToUpload: File[]) => {
     if (!filesToUpload.length) return;
     setUploading(true);
-    try {
-      const uploaded: {
-        originalName: string; filename: string; path: string; size: number;
-        extractedTextPath?: string; pages?: number; extractionError?: string;
-      }[] = [];
+    const pending = filesToUpload.map((file, index) => ({
+      clientId: `${Date.now()}-${index}-${file.name}`,
+      originalName: file.name,
+      size: file.size,
+      startedAt: Date.now(),
+      isPdf: /\.pdf$/i.test(file.name),
+      isAudio: isAudioAttachment(file.name),
+    }));
+    setPendingUploads((prev) => [...prev, ...pending]);
 
-      for (const file of filesToUpload) {
+    try {
+      for (let index = 0; index < filesToUpload.length; index++) {
+        const file = filesToUpload[index];
+        const pendingUpload = pending[index];
         const form = new FormData();
         form.append("file", file);
-        const res = await fetch("/api/upload", { method: "POST", body: form });
-        if (!res.ok) throw new Error(`Upload failed for ${file.name}`);
-        uploaded.push(await res.json());
+        try {
+          const res = await fetch("/api/upload", { method: "POST", body: form });
+          if (!res.ok) throw new Error(`Upload failed for ${file.name}`);
+          const uploaded = await res.json() as UploadedAttachment;
+          setAttachedFiles((prev) => [...prev, uploaded]);
+        } catch (err: any) {
+          setMessages((prev) => [...prev, { role: "assistant", content: `Upload error: ${err.message}` }]);
+        } finally {
+          setPendingUploads((prev) => prev.filter((item) => item.clientId !== pendingUpload.clientId));
+        }
       }
-
-      setAttachedFiles((prev) => [...prev, ...uploaded]);
-    } catch (err: any) {
-      setMessages((prev) => [...prev, { role: "assistant", content: `Upload error: ${err.message}` }]);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -1177,7 +1426,7 @@ function AgentView({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
+    if (e.key === "Enter" && !e.shiftKey && pendingUploads.length === 0) { e.preventDefault(); sendMessage(input); }
   };
 
   // Group files by directory
@@ -1196,6 +1445,8 @@ function AgentView({
     if (diff < 604800000) return d.toLocaleDateString([], { weekday: "short" });
     return d.toLocaleDateString([], { month: "short", day: "numeric" });
   };
+
+  const activeActivity = activeTools.length > 0 ? describeToolActivity(activeTools[activeTools.length - 1]) : null;
 
   return (
     <div className="flex h-full">
@@ -1359,29 +1610,40 @@ function AgentView({
 
               {messages.map((msg, i) => (
                 <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
-                  <div
-                    className={cn(
-                      "max-w-[78%] max-md:max-w-[92%] text-sm leading-relaxed",
-                      msg.role === "user"
-                        ? "bg-primary/12 text-foreground px-3.5 py-2 rounded-2xl rounded-br-sm border border-primary/15 shadow-[0_8px_24px_rgba(124,58,237,0.08)]"
-                        : "px-3 py-2 rounded-2xl rounded-bl-sm bg-card/82 border border-border/70 shadow-[0_10px_28px_rgba(15,23,42,0.06)]"
-                    )}
-                  >
-                    {msg.toolCalls && (
-                      <div className="flex flex-wrap gap-1 mb-1.5">
-                        {msg.toolCalls.map((t, j) => (
-                          <span key={j} className="inline-flex items-center gap-1 text-[0.65rem] text-muted-foreground/50 font-mono">
-                            <Wrench className="size-2.5" />{t}
-                          </span>
+                  <div className={cn("max-w-[78%] max-md:max-w-[92%] text-sm leading-relaxed", msg.role === "user" && "flex flex-col items-end gap-2")}>
+                    {msg.role === "user" && msg.attachments && msg.attachments.length > 0 && (
+                      <div className="flex w-full flex-col gap-2">
+                        {msg.attachments.map((attachment, index) => (
+                          <AttachmentCard key={`${attachment.filename}-${index}`} attachment={attachment} compact />
                         ))}
                       </div>
                     )}
-                    {msg.role === "assistant" ? (
-                      <div className="agent-markdown prose prose-sm max-w-none">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{msg.content}</ReactMarkdown>
+
+                    {msg.content.trim() && (
+                      <div
+                        className={cn(
+                          msg.role === "user"
+                            ? "bg-primary/12 text-foreground px-3.5 py-2 rounded-2xl rounded-br-sm border border-primary/15 shadow-[0_8px_24px_rgba(124,58,237,0.08)]"
+                            : "px-3 py-2 rounded-2xl rounded-bl-sm bg-card/82 border border-border/70 shadow-[0_10px_28px_rgba(15,23,42,0.06)]"
+                        )}
+                      >
+                        {msg.toolCalls && (
+                          <div className="flex flex-wrap gap-1 mb-1.5">
+                            {msg.toolCalls.map((t, j) => (
+                              <span key={j} className="inline-flex items-center gap-1 text-[0.65rem] text-muted-foreground/50 font-mono">
+                                <Wrench className="size-2.5" />{t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {msg.role === "assistant" ? (
+                          <div className="agent-markdown prose prose-sm max-w-none">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{msg.content}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <pre className="whitespace-pre-wrap break-words font-mono text-[0.84rem]">{msg.content}</pre>
+                        )}
                       </div>
-                    ) : (
-                      <pre className="whitespace-pre-wrap break-words font-mono text-[0.84rem]">{msg.content}</pre>
                     )}
                   </div>
                 </div>
@@ -1409,11 +1671,28 @@ function AgentView({
 
               {sending && !streamingText && (
                 <div className="flex justify-start px-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="loading-dot text-sm text-muted-foreground">*</span>
-                    <span className="loading-dot text-sm text-muted-foreground">*</span>
-                    <span className="loading-dot text-sm text-muted-foreground">*</span>
-                  </div>
+                  {activeActivity ? (
+                    <div className="max-w-[78%] max-md:max-w-[92%] rounded-2xl rounded-bl-sm border border-border/70 bg-card/82 px-3 py-2 shadow-[0_10px_28px_rgba(15,23,42,0.06)]">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+                          {activeActivity.icon === "search" ? <Search className="size-3.5" /> : <Loader2 className="size-3.5 animate-spin" />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-primary/80">
+                            <Loader2 className="size-3 animate-spin" />
+                            <span>{activeActivity.title}</span>
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground">{activeActivity.detail}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <span className="loading-dot text-sm text-muted-foreground">*</span>
+                      <span className="loading-dot text-sm text-muted-foreground">*</span>
+                      <span className="loading-dot text-sm text-muted-foreground">*</span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1445,19 +1724,22 @@ function AgentView({
             )}
 
             {/* Attached files */}
-            {attachedFiles.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 px-4 py-1.5 border-t border-sidebar-border shrink-0">
-                {attachedFiles.map((f, i) => (
-                  <span key={i} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs px-2 py-1 rounded-lg">
-                    <Paperclip className="size-3" />
-                    {f.originalName}
-                    {f.extractedTextPath && <FileText className="size-3 text-green-500" title={`${f.pages} pages extracted`} />}
-                    {f.extractionError && <X className="size-3 text-destructive" title={f.extractionError} />}
-                    <button onClick={() => setAttachedFiles((prev) => prev.filter((_, j) => j !== i))} className="hover:text-destructive">
-                      <X className="size-3" />
-                    </button>
-                  </span>
-                ))}
+            {(pendingUploads.length > 0 || attachedFiles.length > 0) && (
+              <div className="max-h-48 overflow-y-auto border-t border-sidebar-border px-4 py-2 shrink-0">
+                <div className="grid gap-2">
+                  {pendingUploads.map((upload) => {
+                    const stages = upload.isPdf ? PENDING_PDF_STAGES : PENDING_FILE_STAGES;
+                    const stageIndex = Math.min(stages.length - 1, Math.floor((processingTick - upload.startedAt) / 1100));
+                    return <PendingAttachmentCard key={upload.clientId} upload={upload} stageIndex={stageIndex} />;
+                  })}
+                  {attachedFiles.map((attachment, index) => (
+                    <AttachmentCard
+                      key={`${attachment.filename}-${index}`}
+                      attachment={attachment}
+                      onRemove={() => removeAttachedFile(attachment)}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 
@@ -1485,7 +1767,7 @@ function AgentView({
               />
               <Button
                 onClick={() => sendMessage(input)}
-                disabled={sending || (!input.trim() && !attachedFiles.length)}
+                disabled={sending || uploading || pendingUploads.length > 0 || (!input.trim() && !attachedFiles.length)}
                 size="icon"
                 className="size-[38px] rounded-xl shrink-0"
               >
