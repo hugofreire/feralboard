@@ -31,6 +31,16 @@ This repository is a non-destructive monorepo created by copying the current sta
 - Build website: `npm run build:website`
 - Run pi-web: `npm run dev:pi-web`
 - Run website: `npm run dev:website`
+- Build firmware: `npm run firmware:build`
+- Flash existing firmware hex: `sudo npm run firmware:flash`
+- Build and flash firmware: `sudo npm run firmware:deploy`
+
+## Firmware Workflow
+
+- Prefer the repo-root firmware entrypoint: `scripts/firmware/flash.sh`
+- Do not call `hardware/firmware/build-and-flash.sh` directly unless you are editing that script itself.
+- Firmware build artifacts are written to `hardware/firmware/src/cli-build/` and are gitignored.
+- Pi 5 flashing uses `/dev/ttyAMA3` via serialUPDI; runtime serial comms remain on `/dev/ttyAMA0`.
 
 ## Current Environment Quirks
 
