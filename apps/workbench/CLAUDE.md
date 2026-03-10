@@ -7,6 +7,7 @@ Python GUI, device scripts, and E2E tests for the FeralBoard.
 - Python runtime uses `.venv/`, created by `setup.sh` with `python3 -m venv --system-site-packages`
 - GTK/PyGObject stays provided by apt/system Python
 - Run Python entrypoints through `bash scripts/python.sh ...`
+- For Brother QL printing, prefer `bash scripts/brother_ql.sh ...`
 - Firmware lives in the monorepo at `../../hardware/firmware`
 - Preferred firmware entrypoint is `sudo bash ../../scripts/firmware/flash.sh`
 

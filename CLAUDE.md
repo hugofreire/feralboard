@@ -51,6 +51,11 @@ This repository is a non-destructive monorepo created by copying the current sta
 
 ## Pi-Coding Agent (how to steer it)
 
+- `apps/workbench` uses `.venv` created by `setup.sh` with `--system-site-packages`
+- For workbench Python commands, prefer `bash scripts/python.sh ...` over bare `python3`
+- For Brother QL printing, prefer `bash scripts/brother_ql.sh ...`
+- Do not treat `~/.local` Python packages as the source of truth for workbench behavior
+
 The pi-web app embeds a coding agent that edits kiosk apps. Here's how its context is wired:
 
 ### Scope prefix (system-prompt-like injection)

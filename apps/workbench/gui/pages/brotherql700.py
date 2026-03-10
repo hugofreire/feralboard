@@ -34,13 +34,30 @@ def _load_env(path):
 
 _load_env(ENV_PATH)
 
+WORKBENCH_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+WORKBENCH_BROTHER_QL = os.path.join(WORKBENCH_ROOT, "scripts", "brother_ql.sh")
+
+
+def _resolve_brother_ql_bin():
+    override = os.getenv("BROTHER_QL_BIN", "").strip()
+    candidates = [
+        override,
+        WORKBENCH_BROTHER_QL,
+        shutil.which("brother_ql") or "",
+        "/home/pi/.local/bin/brother_ql",
+    ]
+    for candidate in candidates:
+        if candidate and os.path.exists(candidate):
+            return candidate
+    return override or WORKBENCH_BROTHER_QL
+
 PRINT_CMD_TEMPLATE = os.getenv("PRINT_CMD_TEMPLATE", "")
 PRINT_TIMEOUT = float(os.getenv("PRINT_TIMEOUT", "15"))
 DEFAULT_COPIES = int(os.getenv("DEFAULT_COPIES", "1"))
 MAX_COPIES = int(os.getenv("MAX_COPIES", "50"))
 LABEL_DESC = os.getenv("LABEL_DESC", "12mm x 30.48mm (1/2\" x 100')")
 PRINTER_DESC = os.getenv("PRINTER_DESC", "USB")
-BROTHER_QL_BIN = os.getenv("BROTHER_QL_BIN", "/home/pi/.local/bin/brother_ql")
+BROTHER_QL_BIN = _resolve_brother_ql_bin()
 PRINTER_PATH = os.getenv("PRINTER_PATH", "/dev/usb/lp0")
 PRINT_BACKEND = os.getenv("PRINT_BACKEND", "linux_kernel")
 PRINTER_MODEL = os.getenv("PRINTER_MODEL", "QL-700")
@@ -460,7 +477,7 @@ class Brotherql700Page(Gtk.Box):
         if copies < 1:
             self._set_status("Quantidade inválida.", "#e74c3c")
             return
-        if not (shutil.which(BROTHER_QL_BIN) or os.path.exists(BROTHER_QL_BIN)):
+        if not os.path.exists(BROTHER_QL_BIN):
             self._set_status("brother_ql não encontrado.", "#e74c3c")
             return
 

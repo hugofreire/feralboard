@@ -1,3 +1,5 @@
 pyserial
 pytest
 pymodbus
+Pillow
+brother-ql

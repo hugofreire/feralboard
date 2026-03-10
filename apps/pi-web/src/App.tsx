@@ -1242,6 +1242,7 @@ function AgentView({
     `[Context: You are working on the kiosk app "${appName}" (slug: "${slug}").`,
     `Files in scope: kiosk_apps/${slug}/app.json, kiosk_apps/${slug}/.env, gui/pages/${slug}.py`,
     `Read kiosk_apps/CLAUDE.md for the full development guide. Read the app files before making changes.`,
+    `[Python runtime: apps/workbench uses .venv created by setup.sh with --system-site-packages. For Python work in apps/workbench, prefer "bash scripts/python.sh ..." instead of bare python3. For Brother QL printing, prefer "bash scripts/brother_ql.sh ...". Do not assume ~/.local Python packages are the source of truth.]`,
     `A Siemens PLC knowledgebase is available at ../pi-web/knowledgebase/ with extracted communication references for LOGO! 8, S7-1200, S7-1500, S7-200, S7-300, and S7-400. Start with plc_reference_index.md for an overview, then read the relevant *_communication_reference.md file. Use this when you need Modbus register mappings, protocol details, connection parameters, or I/O addressing for Siemens PLCs.]`,
     `[Tooling note: a custom tool named "web_search" is available for live web lookup through Brave Search. Use it when you need current external documentation or recent information not present in the local repo.]`,
     ``,
