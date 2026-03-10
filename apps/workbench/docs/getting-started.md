@@ -13,7 +13,8 @@ cd /home/pi/apps/feralboard/apps/workbench
 sudo bash setup.sh
 ```
 
-This installs: python3, PyGObject, GTK3, pyserial, grim, socat.
+This installs: python3, `python3-venv`, PyGObject, GTK3, pyserial, grim, socat.
+It also creates `.venv/` with `--system-site-packages` and installs Python packages from `requirements.txt`.
 
 ## Firmware Build & Flash
 
@@ -42,7 +43,7 @@ bash scripts/run.sh
 
 # Or directly with env vars
 export WAYLAND_DISPLAY=wayland-1 XDG_RUNTIME_DIR=/run/user/1000
-python3 gui/app.py
+bash scripts/python.sh gui/app.py
 ```
 
 The GUI opens fullscreen on the Pi's display (480x819 portrait).
@@ -83,16 +84,16 @@ E2E tests require both the FeralBoard (serial) and raspi-gpio (TCP GPIO API) to 
 
 ```bash
 # Output test: FeralBoard -> raspi-gpio GPIO verification
-python3 tests/test_outputs_e2e.py
+bash scripts/python.sh tests/test_outputs_e2e.py
 
 # Input test: raspi-gpio GPIO -> FeralBoard verification
-python3 tests/test_inputs_e2e.py
+bash scripts/python.sh tests/test_inputs_e2e.py
 
 # With custom options
-python3 tests/test_outputs_e2e.py --port /dev/ttyAMA0 --gpio-host 192.168.0.142
+bash scripts/python.sh tests/test_outputs_e2e.py --port /dev/ttyAMA0 --gpio-host 192.168.0.142
 
 # Via pytest
-pytest tests/ --port /dev/ttyAMA0
+bash scripts/python.sh -m pytest tests/ --port /dev/ttyAMA0
 ```
 
 ## Serial Ports

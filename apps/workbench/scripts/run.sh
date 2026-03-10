@@ -10,7 +10,7 @@ export GDK_BACKEND="wayland"
 export SWAYSOCK=$(ls /run/user/$(id -u)/sway-ipc.*.sock 2>/dev/null | head -1)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-python3 "$SCRIPT_DIR/../gui/app.py" &
+"$SCRIPT_DIR/python.sh" "$SCRIPT_DIR/../gui/app.py" &
 APP_PID=$!
 
 # Wait for the window to appear, then fullscreen it via sway

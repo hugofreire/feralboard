@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import sys
 import threading
 
 import gi
@@ -117,7 +118,7 @@ class TestsPage(Gtk.Box):
     def _run_subprocess(self, script_path: str, test_name: str):
         try:
             self._process = subprocess.Popen(
-                ["python3", script_path],
+                [sys.executable, script_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,

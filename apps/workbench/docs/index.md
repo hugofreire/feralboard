@@ -20,6 +20,7 @@ feralboard-workbench/
 ├── tests/           E2E tests (outputs + inputs)
 ├── gui/             GTK3 application (pages, widgets, serial bridge)
 ├── scripts/         Shell helpers (run, screenshot, send)
+├── .venv/           Project virtualenv with system GTK packages visible
 ├── docs/            Documentation (you are here)
 ├── mkdocs.yml       MkDocs configuration
 ├── setup.sh         Dependency installer
@@ -39,8 +40,8 @@ sudo bash ../../scripts/firmware/flash.sh
 bash scripts/run.sh
 
 # Run E2E tests
-python3 tests/test_outputs_e2e.py
-python3 tests/test_inputs_e2e.py
+bash scripts/python.sh tests/test_outputs_e2e.py
+bash scripts/python.sh tests/test_inputs_e2e.py
 ```
 
 ## Key Specs
