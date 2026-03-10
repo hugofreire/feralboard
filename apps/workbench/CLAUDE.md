@@ -41,6 +41,7 @@ sudo bash ../../scripts/firmware/flash.sh --flash-only
 - IPC socket: `/tmp/feralboard-workbench.sock`
 - Screenshot: `bash scripts/screenshot.sh`
 - Send commands: `bash scripts/send.sh navigate outputs`
+- Builder Portal page shows reachable pi-web URLs for `:5173` and `:3001`
 
 ## Test Notes
 

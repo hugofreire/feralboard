@@ -41,7 +41,15 @@ FeralBoard Developer Portal — a web-based tool for managing kiosk apps on the 
 npm run dev          # starts server + vite concurrently
 npm run dev:server   # server only (tsx watch)
 npm run dev:client   # vite only
+./scripts/run-dev-stack.sh  # same split-process stack used by systemd
 ```
+
+## Runtime Service
+
+- `feralboard-pi-web.service` should run `./scripts/run-dev-stack.sh`
+- This keeps `:3001` and `:5173` in one unit with one journal stream
+- Restart: `sudo systemctl restart feralboard-pi-web`
+- Logs: `journalctl -u feralboard-pi-web -f`
 
 ## Things to Watch Out For
 

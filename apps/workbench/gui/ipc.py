@@ -52,7 +52,7 @@ class IpcServer:
 
         if cmd == "navigate" and len(parts) >= 2:
             page = parts[1].lower()
-            static_pages = ("home", "outputs", "inputs", "tests", "wifi", "ethernet", "system", "kiosk", "pin", "apps", "rfid")
+            static_pages = ("home", "outputs", "inputs", "tests", "builder-portal", "wifi", "ethernet", "system", "kiosk", "pin", "apps", "rfid")
             if page in static_pages or page == self.app._dynamic_page_name:
                 GLib.idle_add(self.app.navigate_to, page)
                 return f"OK: navigated to {page}\n"
@@ -95,7 +95,7 @@ class IpcServer:
         elif cmd == "help":
             return (
                 "Commands:\n"
-                "  navigate <page>  - switch page (static + loaded dynamic pages)\n"
+                "  navigate <page>  - switch page (home, outputs, inputs, tests, builder-portal, wifi, ethernet, system, apps, rfid, kiosk, pin, or a loaded dynamic page)\n"
                 "  click X Y - simulate click at pixel coordinates\n"
                 "  widgets    - list visible buttons/switches with coordinates\n"
                 "  connect    - open serial connection\n"

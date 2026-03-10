@@ -27,6 +27,7 @@ class WorkbenchHeaderBar(Gtk.HeaderBar):
             ("Outputs", "outputs"),
             ("Inputs", "inputs"),
             ("Tests", "tests"),
+            ("Portal", "builder-portal"),
             ("WiFi", "wifi"),
             ("Eth", "ethernet"),
             ("Sys", "system"),

@@ -121,6 +121,7 @@ class HomePage(Gtk.Box):
             ("outputs", "Outputs", "DO0-DO11", "preferences-desktop-peripherals-symbolic"),
             ("inputs", "Inputs", "DI0-DI7", "view-list-symbolic"),
             ("tests", "Tests", "E2E", "system-run-symbolic"),
+            ("builder-portal", "Builder Portal", "pi-web Links", "applications-internet-symbolic"),
             ("wifi", "WiFi", "Networks", "network-wireless-symbolic"),
             ("ethernet", "Ethernet", "IP Config", "network-wired-symbolic"),
             ("system", "System", "Monitor", "utilities-system-monitor-symbolic"),

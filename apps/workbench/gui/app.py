@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import time
+import glob
 
 # Ensure lib/ is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -25,6 +26,7 @@ from gui.pages.home import HomePage
 from gui.pages.outputs import OutputsPage
 from gui.pages.inputs import InputsPage
 from gui.pages.tests import TestsPage
+from gui.pages.builder_portal import BuilderPortalPage
 from gui.pages.wifi import WifiPage
 from gui.pages.ethernet import EthernetPage
 from gui.pages.system import SystemPage
@@ -32,7 +34,6 @@ from gui.pages.kiosk import KioskPage
 from gui.pages.pin import PinPage
 from gui.pages.apps import AppsPage
 from gui.pages.rfid import RfidPage
-from gui.widgets.header_bar import WorkbenchHeaderBar
 from gui.ipc import IpcServer
 
 
@@ -80,17 +81,10 @@ class WorkbenchWindow(Gtk.Window):
         # No window decorations (header packed as regular widget)
         self.set_decorated(False)
 
-        # Header bar
-        self.header = WorkbenchHeaderBar(
-            on_navigate=self.navigate_to,
-            on_port_changed=self._on_port_changed,
-        )
-
         # Main layout — clamp width to actual display
         # (GTK3 fullscreen allocates wrong width with fractional Wayland scaling)
         main_box = ClampBox(self._display_w,
                             orientation=Gtk.Orientation.VERTICAL)
-        main_box.pack_start(self.header, False, False, 0)
 
         # Stack for pages
         self.stack = Gtk.Stack()
@@ -109,6 +103,7 @@ class WorkbenchWindow(Gtk.Window):
         self.outputs_page = OutputsPage(on_toggle=self._on_output_toggle, on_back=go_home)
         self.inputs_page = InputsPage(on_back=go_home)
         self.tests_page = TestsPage(on_back=go_home)
+        self.builder_portal_page = BuilderPortalPage(on_back=go_home)
         self.wifi_page = WifiPage(on_back=go_home)
         self.ethernet_page = EthernetPage(on_back=go_home)
         self.system_page = SystemPage(on_back=go_home)
@@ -131,6 +126,7 @@ class WorkbenchWindow(Gtk.Window):
         self.stack.add_named(self.outputs_page, "outputs")
         self.stack.add_named(self.inputs_page, "inputs")
         self.stack.add_named(self.tests_page, "tests")
+        self.stack.add_named(self.builder_portal_page, "builder-portal")
         self.stack.add_named(self.wifi_page, "wifi")
         self.stack.add_named(self.ethernet_page, "ethernet")
         self.stack.add_named(self.system_page, "system")
@@ -178,13 +174,10 @@ class WorkbenchWindow(Gtk.Window):
                 and page_name != self._dynamic_page_name):
             self._dynamic_page.cleanup()
         self.stack.set_visible_child_name(page_name)
-        # Show header for admin pages, hide for kiosk/pin
-        admin_pages = ("home", "outputs", "inputs", "tests", "wifi", "ethernet", "system", "apps", "rfid")
-        self.header.set_visible(page_name in admin_pages)
-        if page_name in admin_pages:
-            self.header.set_active_page(page_name)
         if page_name == "wifi":
             self.wifi_page.refresh()
+        elif page_name == "builder-portal":
+            self.builder_portal_page.refresh()
         elif page_name == "ethernet":
             self.ethernet_page.refresh()
         elif page_name == "system":
@@ -243,13 +236,17 @@ class WorkbenchWindow(Gtk.Window):
             self._dynamic_page = None
             self._dynamic_page_name = None
 
-    def _on_port_changed(self, port: str):
-        """User selected a different serial port in the combo box."""
-        pass  # Port is read on connect
+    @staticmethod
+    def _get_default_serial_port() -> str:
+        ports = sorted(glob.glob("/dev/ttyAMA*"))
+        for port in ports:
+            if port.endswith("ttyAMA0"):
+                return port
+        return ports[0] if ports else ""
 
     def _connect(self):
         """Open serial port and start communication."""
-        port = self.header.get_selected_port()
+        port = self._get_default_serial_port()
         if not port:
             return
 
