@@ -270,4 +270,3 @@ pip install feralboard-sdk==0.1.0
 The public compatibility contract is the documented API in this guide. Internal
 implementation details, firmware internals, and undocumented modules may change
 between releases.
-
