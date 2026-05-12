@@ -12,6 +12,8 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GLib
 
+from gui.virtual_keyboard import attach_virtual_keyboard
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
 ENV_PATH = os.path.join(
@@ -150,6 +152,7 @@ class Brotherql700Page(Gtk.Box):
         self._text_entry = Gtk.Entry()
         self._text_entry.set_placeholder_text("Digite o texto...")
         self._text_entry.set_margin_bottom(6)
+        attach_virtual_keyboard(self._text_entry)
         content.pack_start(self._text_entry, False, False, 0)
 
         mode_row = Gtk.Box(spacing=10)

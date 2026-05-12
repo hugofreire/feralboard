@@ -19,8 +19,8 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GLib
 
-from lib.serial_comm import SerialCommunicator
-from lib.protocol import CMD_FACTORY_MODE
+from feralboard_sdk.protocol import CMD_FACTORY_MODE
+from feralboard_sdk.serial_comm import SerialCommunicator
 from gui.serial_bridge import SerialBridge
 from gui.pages.home import HomePage
 from gui.pages.outputs import OutputsPage
@@ -35,6 +35,7 @@ from gui.pages.pin import PinPage
 from gui.pages.apps import AppsPage
 from gui.pages.rfid import RfidPage
 from gui.ipc import IpcServer
+from gui.virtual_keyboard import keyboard_manager
 
 
 class ClampBox(Gtk.Box):
@@ -317,6 +318,7 @@ class WorkbenchWindow(Gtk.Window):
         return False
 
     def _on_destroy(self, widget):
+        keyboard_manager.hide()
         self._disconnect()
         self.rfid_page.cleanup()
         self._cleanup_dynamic_page()

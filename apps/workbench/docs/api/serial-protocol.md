@@ -154,4 +154,4 @@ Binary frame format used between the control panel and the FeralBoard controller
 
 - Computed over bytes `0`–`9` of the command frame
 - Polynomial: `0x07`
-- See `lib/crc8.py` for the lookup table implementation
+- See `packages/feralboard-sdk-py/src/feralboard_sdk/crc8.py` for the SDK implementation

@@ -13,9 +13,9 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from lib.serial_comm import SerialCommunicator
-from lib.gpio_client import GpioClient
-from lib.io_map import OUTPUTS
+from feralboard_sdk.gpio_client import GpioClient
+from feralboard_sdk.io_map import OUTPUTS
+from feralboard_sdk.serial_comm import SerialCommunicator
 
 SETTLE_TIME = 3.0
 VALID_RX_TIMEOUT = 10.0

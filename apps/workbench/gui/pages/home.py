@@ -9,7 +9,7 @@ from gi.repository import Gtk, GLib
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from lib.protocol import (
+from feralboard_sdk.protocol import (
     RX_MAIN_TEMP_OFFSET, RX_PCB_TEMP, RX_ERROR_FLAGS, RX_MODE_STATE,
     bytes_to_float, get_door_state,
     DOOR_STATE_UNKNOWN, DOOR_STATE_OPEN, DOOR_STATE_INTERMEDIATE, DOOR_STATE_CLOSED,

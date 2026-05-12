@@ -10,6 +10,8 @@ Python GUI, device scripts, and E2E tests for the FeralBoard.
 - For Brother QL printing, prefer `bash scripts/brother_ql.sh ...`
 - Firmware lives in the monorepo at `../../hardware/firmware`
 - Preferred firmware entrypoint is `sudo bash ../../scripts/firmware/flash.sh`
+- Board I/O helpers live in `../../packages/feralboard-sdk-py`
+- New board-facing code should import from `feralboard_sdk`; `lib.*` remains as a compatibility wrapper
 
 ## Common Commands
 

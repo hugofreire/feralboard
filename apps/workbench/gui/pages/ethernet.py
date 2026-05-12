@@ -6,6 +6,8 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 
+from gui.virtual_keyboard import attach_virtual_keyboard
+
 
 def _run_cmd(cmd):
     """Run a shell command and return stdout."""
@@ -175,6 +177,7 @@ class EthernetPage(Gtk.Box):
 
         entry = Gtk.Entry()
         entry.set_placeholder_text(placeholder)
+        attach_virtual_keyboard(entry)
         parent.pack_start(entry, False, False, 0)
         return entry
 

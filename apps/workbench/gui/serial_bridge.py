@@ -9,8 +9,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib
 
-from lib.serial_comm import SerialCommunicator
-from lib.io_map import OUTPUTS
+from feralboard_sdk.serial_comm import SerialCommunicator
 
 
 class SerialBridge:
@@ -48,19 +47,7 @@ class SerialBridge:
 
     def set_output(self, channel_name: str, value: bool):
         """Set or clear a single output bit in the TX buffer."""
-        for name, tx_byte, bit_idx, _ in OUTPUTS:
-            if name == channel_name:
-                with self.comm.lock:
-                    attr_map = {0: 'tx_byte0', 1: 'tx_byte1',
-                                2: 'tx_byte2', 3: 'tx_byte3'}
-                    attr = attr_map.get(tx_byte)
-                    if attr:
-                        current = getattr(self.comm, attr)
-                        if value:
-                            setattr(self.comm, attr, current | (1 << bit_idx))
-                        else:
-                            setattr(self.comm, attr, current & ~(1 << bit_idx))
-                return
+        self.comm.set_output(channel_name, value)
 
     def clear_all_outputs(self):
         self.comm.clear_all_outputs()

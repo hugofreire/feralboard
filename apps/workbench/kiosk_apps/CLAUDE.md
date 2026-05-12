@@ -86,9 +86,9 @@ class MyAppPage(Gtk.Box):
 
 ## Available Libraries
 
-### Serial Communication (`lib/serial_comm.py`)
+### Serial Communication (`feralboard_sdk.serial_comm`)
 ```python
-from lib.serial_comm import SerialCommunicator
+from feralboard_sdk.serial_comm import SerialCommunicator
 # Don't create your own — the framework manages the serial connection.
 # Use update_from_rx() to receive data, or access via the bridge.
 ```
@@ -106,15 +106,15 @@ reader.stop_inventory()
 reader.disconnect()
 ```
 
-### Protocol Constants (`lib/protocol.py`)
+### Protocol Constants (`feralboard_sdk.protocol`)
 ```python
-from lib.protocol import CMD_FACTORY_MODE
+from feralboard_sdk.protocol import CMD_FACTORY_MODE
 # I/O mapping constants, command bytes, etc.
 ```
 
-### GPIO Client (`lib/gpio_client.py`)
+### GPIO Client (`feralboard_sdk.gpio_client`)
 ```python
-from lib.gpio_client import GpioClient
+from feralboard_sdk.gpio_client import GpioClient
 gpio = GpioClient("192.168.0.142", 5555)
 gpio.read("17")
 gpio.write("17", 1)

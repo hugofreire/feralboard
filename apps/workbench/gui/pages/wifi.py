@@ -7,6 +7,8 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 
+from gui.virtual_keyboard import attach_virtual_keyboard, keyboard_manager
+
 
 def _run_cmd(cmd):
     """Run a shell command and return stdout."""
@@ -242,6 +244,7 @@ class WifiPage(Gtk.Box):
         password_entry.set_placeholder_text("Enter password...")
         password_entry.set_visibility(False)
         password_entry.set_activates_default(True)
+        attach_virtual_keyboard(password_entry)
         content.pack_start(password_entry, False, False, 0)
 
         dialog.set_default_response(Gtk.ResponseType.OK)
@@ -250,6 +253,7 @@ class WifiPage(Gtk.Box):
 
         response = dialog.run()
         password = password_entry.get_text()
+        keyboard_manager.hide()
         dialog.destroy()
 
         if response == Gtk.ResponseType.OK:

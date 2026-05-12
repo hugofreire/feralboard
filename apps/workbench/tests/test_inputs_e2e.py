@@ -13,8 +13,8 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from lib.serial_comm import SerialCommunicator
-from lib.gpio_client import GpioClient
+from feralboard_sdk.gpio_client import GpioClient
+from feralboard_sdk.serial_comm import SerialCommunicator
 
 # GPIO pin -> FeralBoard input mapping
 # (gpio_pin, rx_byte, bit_idx, name)

@@ -8,8 +8,8 @@ import pytest
 # Ensure lib/ is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from lib.serial_comm import SerialCommunicator
-from lib.gpio_client import GpioClient
+from feralboard_sdk.gpio_client import GpioClient
+from feralboard_sdk.serial_comm import SerialCommunicator
 
 
 DEFAULT_PORT = "/dev/ttyAMA0"

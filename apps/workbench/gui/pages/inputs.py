@@ -7,7 +7,7 @@ from gi.repository import Gtk
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from lib.io_map import INPUTS, INPUT_LEGACY_NAMES
+from feralboard_sdk.io_map import INPUTS, INPUT_LEGACY_NAMES
 from gui.widgets.input_card import InputCard
 
 

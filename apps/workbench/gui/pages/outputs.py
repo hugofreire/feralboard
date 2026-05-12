@@ -7,7 +7,7 @@ from gi.repository import Gtk
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from lib.io_map import OUTPUTS
+from feralboard_sdk.io_map import OUTPUTS
 from gui.widgets.toggle_card import ToggleCard
 
 

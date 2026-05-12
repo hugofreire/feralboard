@@ -79,7 +79,7 @@ GPIO: 15, 16, 17, 18, 19, 20
 ## Python Usage
 
 ```python
-from lib.gpio_client import GpioClient
+from feralboard_sdk.gpio_client import GpioClient
 
 gpio = GpioClient()  # defaults to 192.168.0.142:5555
 
