@@ -1,4 +1,4 @@
-# FeralBoard Python SDK - OEM Evaluation Guide
+# FeralBoard Device SDK - OEM Evaluation Guide
 
 This document describes the customer-facing Python SDK for integrating
 FeralBoard into OEM equipment, test fixtures, kiosks, and automation systems.
@@ -9,7 +9,8 @@ embedded firmware source, or the low-level firmware protocol.
 
 ## What The SDK Provides
 
-The FeralBoard Python SDK gives an application controlled access to board I/O:
+The FeralBoard Device SDK gives an application controlled access to board I/O
+and approved device-management workflows:
 
 - Connect to a FeralBoard over a serial device.
 - Read digital input channels `DI0` through `DI7`.
@@ -18,6 +19,19 @@ The FeralBoard Python SDK gives an application controlled access to board I/O:
 - Read output echo state when the board reports it.
 - Read communication counters for diagnostics.
 - Send approved one-shot board commands exposed by the SDK contract.
+- Deploy a supplied release `.hex` firmware binary when field updates are part
+  of the OEM support agreement.
+- Configure static IP, DHCP, gateway, subnet, DNS, and interface status through
+  NetworkManager.
+- Configure timezone, NTP servers, and read time-sync status.
+- Install and control OpenVPN client profiles.
+- Restart approved FeralBoard services such as VPN, MQTT, and Postgres.
+- Collect a read-only support snapshot for diagnostics.
+- Read and update hostname, display device name, and hardware serial identity.
+
+For oven-specific customers, the optional FeralBoard Oven Simulator is documented
+separately in `feralboard-oven-simulator.md`. It builds on the Device SDK but
+keeps oven-domain simulation out of the generic device API.
 
 The recommended customer API is `FeralBoardClient`.
 
@@ -32,7 +46,8 @@ The OEM package is designed to be useful without exposing proprietary internals:
 - Firmware source is not included.
 - Firmware protocol internals are not included.
 - SDK source code is not included in customer deliveries.
-- Factory flashing and manufacturing tools are not part of the customer API.
+- Firmware build tooling and manufacturing tools are not part of the customer
+  API.
 
 Customers receive documentation, examples, and a versioned SDK package such as a
 private wheel:
@@ -50,6 +65,10 @@ Typical runtime requirements:
 - `pyserial`, installed automatically with the SDK package.
 - Permission to open the serial device, for example `/dev/ttyAMA0` or
   `/dev/ttyUSB0`.
+- NetworkManager `nmcli` for network configuration helpers.
+- `timedatectl` and `systemd-timesyncd` for time/NTP helpers.
+- `systemd` for service and OpenVPN helpers.
+- `avrdude` for release `.hex` firmware deployment.
 
 Only one process should own the FeralBoard serial port at a time. If a GUI,
 daemon, or test process already has the port open, stop it before starting a
@@ -159,6 +178,180 @@ Queues an approved one-shot command exposed by the SDK package.
 
 Use this only for commands documented for your firmware and SDK version.
 
+## Device Management API
+
+Mutating device-management helpers support `dry_run=True`. This validates and
+returns the planned operation without changing the device.
+
+### Network
+
+Read interface status:
+
+```python
+from feralboard_sdk import get_interface_status
+
+status = get_interface_status("eth0")
+print(status.ip_addresses, status.gateway, status.dns)
+```
+
+Apply static IPv4 with NetworkManager:
+
+```python
+from feralboard_sdk import NetworkConfig, apply_network_config
+
+results = apply_network_config(
+    NetworkConfig(
+        interface="eth0",
+        mode="static",
+        ip_address="192.168.10.50",
+        prefix=24,
+        gateway="192.168.10.1",
+        dns=["192.168.10.1", "1.1.1.1"],
+    ),
+    dry_run=True,
+)
+
+for result in results:
+    print(" ".join(result.command))
+```
+
+Switch back to DHCP:
+
+```python
+from feralboard_sdk import NetworkConfig, apply_network_config
+
+apply_network_config(NetworkConfig(interface="eth0", mode="dhcp"), dry_run=True)
+```
+
+### Time And NTP
+
+Read sync status:
+
+```python
+from feralboard_sdk import get_time_status
+
+print(get_time_status())
+```
+
+Configure timezone and NTP servers:
+
+```python
+from feralboard_sdk import TimeConfig, apply_time_config
+
+apply_time_config(
+    TimeConfig(
+        timezone="Europe/Lisbon",
+        ntp_enabled=True,
+        ntp_servers=["pool.ntp.org"],
+    ),
+    dry_run=True,
+)
+```
+
+### OpenVPN
+
+Install and enable an OpenVPN client profile:
+
+```python
+from feralboard_sdk import enable_vpn, install_openvpn_profile
+
+install_openvpn_profile("customer.ovpn", profile_name="client", dry_run=True)
+enable_vpn("client", dry_run=True)
+```
+
+Read status and logs:
+
+```python
+from feralboard_sdk import get_vpn_logs, get_vpn_status
+
+print(get_vpn_status("client"))
+print(get_vpn_logs("client", lines=50))
+```
+
+### Approved Services
+
+Only whitelisted service aliases can be controlled by the SDK.
+
+```python
+from feralboard_sdk import get_service_status, restart_service
+
+print(get_service_status("mqtt"))
+restart_service("mqtt", dry_run=True)
+restart_service("postgres", dry_run=True)
+restart_service("vpn", dry_run=True)
+```
+
+### Identity
+
+```python
+from feralboard_sdk import get_device_identity, set_device_name, set_hostname
+
+print(get_device_identity())
+set_hostname("feralboard-line-01", dry_run=True)
+set_device_name("Line 01 Oven Controller", dry_run=True)
+```
+
+### Diagnostics
+
+Collect a read-only support snapshot:
+
+```python
+from feralboard_sdk import collect_health_snapshot
+
+snapshot = collect_health_snapshot()
+print(snapshot.to_json())
+```
+
+The snapshot includes identity, serial-port presence, IP addresses, selected
+interface status, disk usage, CPU temperature, approved service status, and VPN
+status.
+
+## Firmware Binary Deployment
+
+Some OEM agreements include field deployment of release firmware binaries. In
+that model, customers receive a validated `.hex` file from FeralBoard and use
+the SDK to deploy it to the board. The SDK does not expose firmware source,
+firmware build tooling, or the internal firmware protocol.
+
+### `deploy_firmware_hex(hex_path, port=None, dry_run=False)`
+
+Validates and deploys a supplied Intel HEX file.
+
+```python
+from feralboard_sdk import deploy_firmware_hex
+
+result = deploy_firmware_hex(
+    "feralboard-release.hex",
+    port="/dev/ttyAMA3",
+    dry_run=True,
+)
+
+for command in result.commands:
+    print(" ".join(command))
+```
+
+Use `dry_run=True` to validate the HEX file and inspect the deployment commands
+without programming the board.
+
+For a real deployment:
+
+```python
+from feralboard_sdk import deploy_firmware_hex
+
+deploy_firmware_hex(
+    "feralboard-release.hex",
+    port="/dev/ttyAMA3",
+)
+```
+
+Deployment requirements:
+
+- The host must have permission to access the serialUPDI programming port.
+- `avrdude` must be installed on the host.
+- The normal board control process must be stopped during firmware deployment.
+- The `.hex` file must come from a release bundle approved for the target board
+  revision.
+
 ## Digital I/O Channels
 
 ### Digital Inputs
@@ -239,6 +432,13 @@ Example scripts are included next to this document:
 - `examples/output_echo_check.py` - set outputs and check reported echo state.
 - `examples/simple_interlock.py` - drive an output based on an input.
 - `examples/diagnostics.py` - print communication counters and input snapshots.
+- `examples/deploy_firmware_hex.py` - validate or deploy a release HEX binary.
+- `examples/configure_network.py` - preview or apply static/DHCP network config.
+- `examples/configure_time.py` - preview or apply timezone/NTP config.
+- `examples/setup_openvpn.py` - install and control an OpenVPN profile.
+- `examples/manage_service.py` - inspect or restart approved services.
+- `examples/identity.py` - read or update device identity fields.
+- `examples/health_snapshot.py` - print a support snapshot as JSON.
 
 Run examples with:
 
@@ -256,6 +456,9 @@ Use this checklist to decide whether FeralBoard and the SDK fit your product:
 - Application logic can tolerate the SDK background communication model.
 - A single software owner can control the board at runtime.
 - Your system has a defined safe state and calls `clear_all_outputs()` on exit.
+- Installers can use `dry_run=True` to preview risky device changes.
+- Your deployment process defines who can apply network, VPN, time, and firmware
+  updates.
 - Any safety-critical behavior is handled outside non-certified application code.
 
 ## Versioning And Support Contract
