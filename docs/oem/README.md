@@ -10,6 +10,8 @@ Customer-facing evaluation documents for FeralBoard hardware and SDK packages.
   software-in-the-loop oven-control development.
 - `ramalhos-mqtt-integration.md` - MQTT contract used by the Ramalhos oven
   panel app for OEM state monitoring and controlled command publishing.
+- `feralos-os-foundation.md` - concise overview of the Debian-based embedded OS
+  image, startup services, packages, and runtime foundation.
 
 ## Package Positioning
 
@@ -17,6 +19,7 @@ Customer-facing evaluation documents for FeralBoard hardware and SDK packages.
 feralboard-sdk       Generic FeralBoard Device SDK
 feralboard-oven      Optional oven simulator and oven-domain tooling
 ramalhos-panel-mqtt  App-level MQTT integration for the Ramalhos oven panel
+feralos              Debian-based embedded OS image for the control panel
 ```
 
 The Device SDK is the core OEM integration surface. The Oven Simulator is an
